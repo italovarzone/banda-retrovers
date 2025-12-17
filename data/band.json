@@ -1,0 +1,63 @@
+{
+  "name": "Retrôvers",
+  "members": [
+    { "name": "Ítalo Varzone", "role": "Guitarra / Vocal", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Guitarra%20%2F%20Vocal" },
+    { "name": "Davi Ligero", "role": "Baixo / Vocal", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Baixo%20%2F%20Vocal" },
+    { "name": "Matheus Frugis", "role": "Bateria", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Bateria" }
+  ],
+  "about": {
+    "paragraphs": [
+      "A Retrovers celebra o rock nacional dos anos 80 a 2000 com arranjos fiéis e energia de palco.",
+      "Construída por músicos experientes, a Retrôvers leva uma viagem no tempo com repertório que atravessa gerações.",
+      "Formatos acústico e elétrico para diferentes públicos e espaços, sempre com qualidade e presença."
+    ],
+    "generations": [
+      { "image": "https://placehold.co/600x600/0f1317/e5e7eb.png?text=Geracao+1", "caption": "Primeiros anos" },
+      { "image": "https://placehold.co/600x600/0f1317/e5e7eb.png?text=Geracao+2", "caption": "Novos palcos" },
+      { "image": "https://placehold.co/600x600/0f1317/e5e7eb.png?text=Geracao+3", "caption": "Fase atual" }
+    ]
+  },
+  "formats": {
+    "acoustic": "Ideal para ambientes com menor volume e clima intimista, trazendo releituras com violões, percussões leves e vozes em destaque.",
+    "electric": "Para eventos maiores e festas, com pressão sonora, guitarras marcantes e liberdade total aos músicos."
+  },
+  "shows": [
+    {
+      "id": "sp-01",
+      "venue": "Bar do Urso Araras",
+      "city": "Araras/SP",
+      "date": "2025-12-19T20:30:00-03:00",
+      "image": "/images/colorado.png",
+      "description": "Noite de clássicos 80/90 com participação especial.",
+      "link": "https://maps.app.goo.gl/Gnku26kfFDPXRwTWA",
+      "location": { "lat": -22.3604094, "lng": -47.3885957, "address": "Bar do Urso Araras, Araras - SP" },
+      "postUrl": "https://www.instagram.com/p/XXXXXXXXXXX/"
+    },
+    {
+      "id": "sp-02",
+      "venue": "Confraria Gastrobar Leme",
+      "city": "Leme/SP",
+      "date": "2025-12-20T20:30:00-03:00",
+      "image": "/images/confraria.jpg",
+      "description": "Show elétrico completo — repertório de hits nacionais.",
+      "link": "https://maps.app.goo.gl/27bZy6BcGeXnjU63A",
+      "location": { "lat": -22.2112111, "lng": -47.5388588, "address": "Arena Central, São Paulo - SP" },
+      "postUrl": "https://www.instagram.com/p/YYYYYYYYYYY/"
+    },
+    {
+      "id": "sp-03",
+      "venue": "Bar do Urso Araras",
+      "city": "Araras/SP",
+      "date": "2026-02-20T20:30:00-03:00",
+      "image": "/images/colorado.png",
+      "description": "Noite de clássicos 80/90 com participação especial.",
+      "link": "https://maps.app.goo.gl/Gnku26kfFDPXRwTWA",
+      "location": { "lat": -22.3604094, "lng": -47.3885957, "address": "Bar do Urso Araras, Araras - SP" },
+      "postUrl": "https://www.instagram.com/p/XXXXXXXXXXX/"
+    }
+  ],
+  "contact": {
+    "whatsapp": "5519996538569",
+    "message": "Olá! Gostaria de mais informações para contratar a banda Retrovers. Podemos conversar?"
+  }
+}
