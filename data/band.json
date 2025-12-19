@@ -1,9 +1,9 @@
 {
   "name": "Retrôvers",
   "members": [
-    { "name": "Ítalo Varzone", "role": "Guitarra / Vocal", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Guitarra%20%2F%20Vocal" },
-    { "name": "Davi Ligero", "role": "Baixo / Vocal", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Baixo%20%2F%20Vocal" },
-    { "name": "Matheus Frugis", "role": "Bateria", "image": "https://placehold.co/256x256/121417/e5e7eb.png?text=Bateria" }
+    { "name": "Ítalo Varzone", "role": "Guitarra / Vocal", "image": "/images/italo.jpeg" },
+    { "name": "Davi Ligero", "role": "Baixo / Vocal", "image": "/images/davi.jpeg" },
+    { "name": "Matheus Frugis", "role": "Bateria", "image": "/images/frugis.png" }
   ],
   "about": {
     "paragraphs": [
