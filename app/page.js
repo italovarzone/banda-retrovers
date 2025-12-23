@@ -4,16 +4,25 @@ import ShowCard from '@/components/ShowCard'
 import ThemeLogo from '@/components/ThemeLogo'
 import PlaylistEmbeds from '@/components/PlaylistEmbeds'
 
-function formatDate(iso) {
+function formatDate(dateOrIso) {
   try {
-    const d = new Date(iso)
+    const d = dateOrIso instanceof Date ? dateOrIso : new Date(dateOrIso)
     return new Intl.DateTimeFormat('pt-BR', {
       dateStyle: 'full',
-      timeStyle: 'short'
+      timeStyle: 'short',
+      timeZone: 'America/Sao_Paulo'
     }).format(d)
   } catch (e) {
-    return iso
+    return String(dateOrIso)
   }
+}
+
+function parseShowDate(iso) {
+  if (!iso || typeof iso !== 'string') return new Date(NaN)
+  const hasTZ = /([+-]\d{2}:\d{2}|Z)$/i.test(iso)
+  const normalized = iso.replace(' ', 'T')
+  const sp = hasTZ ? normalized : `${normalized}-03:00`
+  return new Date(sp)
 }
 
 function WhatsAppButton({ className = '', label = 'Contate-nos' }) {
@@ -31,10 +40,13 @@ function WhatsAppButton({ className = '', label = 'Contate-nos' }) {
 }
 
 export default function Page() {
+  const now = Date.now()
   const shows = (band.shows || [])
     .slice()
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .map(s => ({...s, whenFormatted: formatDate(s.date)}))
+    .map(s => ({...s, _date: parseShowDate(s.date)}))
+    .filter(s => s._date instanceof Date && !isNaN(s._date) && s._date.getTime() >= now)
+    .sort((a, b) => a._date - b._date)
+    .map(({ _date, ...s }) => ({...s, whenFormatted: formatDate(_date)}))
 
   return (
     <main>
