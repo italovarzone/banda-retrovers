@@ -301,7 +301,6 @@ html {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   place-items: center;
   gap: 1.25rem;
-  margin-top: 1.25rem;
 }
 .plan {
   position: relative;
@@ -406,3 +405,19 @@ html {
 }
 
 /* Theme toggle removed */
+
+/* Playlists */
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+.playlist-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+.playlist-title {
+  margin: 0 0 0.5rem;
+}

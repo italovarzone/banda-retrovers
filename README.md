@@ -45,6 +45,25 @@ Acesse: http://localhost:3000
 - Sobre a Banda: história (parágrafos) + 3 imagens representando gerações
 - Formatos: Acústico e Elétrico
 
+## Repertório (Playlists)
+
+- A seção "Repertório" exibe players incorporados do Spotify e Apple Music.
+- Configure os links adicionando opcionalmente em `data/band.json` o objeto:
+
+```json
+{
+  "playlists": {
+    "spotify": "https://open.spotify.com/playlist/SEU_PLAYLIST_ID",
+    "apple": "https://music.apple.com/br/playlist/SEU_PLAYLIST"
+  }
+}
+```
+
+- Dicas:
+  - Spotify: cole o link da playlist; o site converte para `open.spotify.com/embed/...` automaticamente.
+  - Apple Music: use o link público; será convertido para `embed.music.apple.com/...` automaticamente.
+  - Se os links não forem definidos, um aviso amigável aparecerá na seção.
+
 ## Build e produção
 
 ```bash

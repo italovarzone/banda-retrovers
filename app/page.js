@@ -2,6 +2,7 @@ import Image from 'next/image'
 import band from '../data/band.json'
 import ShowCard from '@/components/ShowCard'
 import ThemeLogo from '@/components/ThemeLogo'
+import PlaylistEmbeds from '@/components/PlaylistEmbeds'
 
 function formatDate(iso) {
   try {
@@ -62,6 +63,21 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Sobre a banda */}
+      <section id="sobre" className="section">
+        <h2 className="section-title">Sobre a banda</h2>
+        <div className="about">
+          <div className="about-side">
+            <Image src={"/foto.png"} alt={band.name} fill className="img contain" sizes="(max-width: 1100px) 90vw, 40vw" />
+          </div>
+          <div className="about-text">
+            {band.about.paragraphs.map((p, i) => (
+              <p key={i} className="para">{p}</p>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Artistas */}
       <section id="artistas" className="section">
         <h2 className="section-title">Artistas</h2>
@@ -80,19 +96,9 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Sobre a banda */}
-      <section id="sobre" className="section">
-        <h2 className="section-title">Sobre a banda</h2>
-        <div className="about">
-          <div className="about-side">
-            <Image src={"/foto.png"} alt={band.name} fill className="img contain" sizes="(max-width: 1100px) 90vw, 40vw" />
-          </div>
-          <div className="about-text">
-            {band.about.paragraphs.map((p, i) => (
-              <p key={i} className="para">{p}</p>
-            ))}
-          </div>
-        </div>
+      {/* Formatos */}
+      <section id="formatos" className="section">
+        <h2 className="section-title">Formatos</h2>
         <div className="plans">
           <article className="plan plan-acoustic">
             <h3>Acústico</h3>
@@ -115,6 +121,14 @@ export default function Page() {
             <WhatsAppButton className="plan-cta" label="Reservar Elétrico" />
           </article>
         </div>
+      </section>
+
+      {/* Repertório (Playlists) */}
+      <section id="repertorio" className="section">
+        <h2 className="section-title">Repertório</h2>
+        <PlaylistEmbeds
+          appleUrl={band.playlists?.apple}
+        />
       </section>
 
       {/* Floating WhatsApp */}
