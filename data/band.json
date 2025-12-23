@@ -31,7 +31,7 @@
       "description": "Noite de clássicos 80/90 com participação especial.",
       "link": "https://maps.app.goo.gl/Gnku26kfFDPXRwTWA",
       "location": { "lat": -22.3604094, "lng": -47.3885957, "address": "Bar do Urso Araras, Araras - SP" },
-      "postUrl": "https://www.instagram.com/p/XXXXXXXXXXX/"
+      "postUrl": ""
     }
   ],
   "contact": {
@@ -39,7 +39,6 @@
     "message": "Olá! Gostaria de mais informações para contratar a banda Retrovers. Podemos conversar?"
   },
   "playlists": {
-    "spotify": "https://open.spotify.com/playlist/XXXXXXXXXXXX",
     "apple": "https://music.apple.com/br/playlist/retrov%C3%AArs/pl.u-aZb0NJ0T18KNgpv"
   }
 }

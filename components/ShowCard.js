@@ -65,9 +65,17 @@ export default function ShowCard({ show }){
         <p className="show-desc">{show.description}</p>
         <div className="show-actions">
           <button className="btn btn-outline-accent" onClick={()=>setOpen(true)}>Rotas</button>
-          {show.postUrl && (
-            <a className="btn btn-accent" href={show.postUrl} target="_blank" rel="noopener noreferrer">Ver publicação</a>
-          )}
+          {(() => {
+            const hasPost = typeof show.postUrl === 'string' && show.postUrl.trim().length > 0
+            if (hasPost) {
+              return (
+                <a className="btn btn-accent" href={show.postUrl} target="_blank" rel="noopener noreferrer">Ver publicação</a>
+              )
+            }
+            return (
+              <button className="btn btn-accent" disabled title="Sem publicação disponível">Ver publicação</button>
+            )
+          })()}
         </div>
       </div>
 
