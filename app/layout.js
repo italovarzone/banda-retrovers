@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata = {
   metadataBase: new URL('https://retrovers.com.br'),
   title: {
-    default: 'Banda Retrovers',
-    template: '%s | Banda Retrovers',
+    default: 'Retrovers',
+    template: '%s | Retrovers',
   },
   description: 'Rock nacional dos anos 80, 90 e 2000 — shows em formatos acústico e elétrico em Araras, Leme e região.',
   keywords: [
@@ -18,8 +18,8 @@ export const metadata = {
     { name: 'Davi Ligero' },
     { name: 'Matheus Frugis' }
   ],
-  creator: 'Banda Retrovers',
-  publisher: 'Banda Retrovers',
+  creator: 'Retrovers',
+  publisher: 'Retrovers',
   category: 'music',
   alternates: {
     canonical: '/',
@@ -31,17 +31,17 @@ export const metadata = {
   openGraph: {
     type: 'website',
     url: 'https://retrovers.com.br/',
-    title: 'Banda Retrovers',
-    siteName: 'Banda Retrovers',
+    title: 'Retrovers',
+    siteName: 'Retrovers',
     description: 'Rock nacional dos anos 80, 90 e 2000 — acústico e elétrico.',
     images: [
-      { url: '/logo.png', width: 1200, height: 630, alt: 'Banda Retrovers' }
+      { url: '/logo.png', width: 1200, height: 630, alt: 'Retrovers' }
     ],
     locale: 'pt_BR',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Banda Retrovers',
+    title: 'Retrovers',
     description: 'Rock nacional dos anos 80, 90 e 2000 — acústico e elétrico.',
     images: ['/logo.png'],
   },
