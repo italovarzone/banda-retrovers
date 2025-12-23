@@ -4,7 +4,11 @@ function toAppleEmbed(url){
   if (!url) return null
   try {
     // Typical: https://music.apple.com/br/playlist/...
-    return url.replace('https://music.apple.com', 'https://embed.music.apple.com')
+    const replaced = url.replace('https://music.apple.com', 'https://embed.music.apple.com')
+    const u = new URL(replaced)
+    // Force dark theme on the embedded player
+    u.searchParams.set('theme', 'dark')
+    return u.toString()
   } catch {
     return url
   }
