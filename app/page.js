@@ -48,8 +48,38 @@ export default function Page() {
     .sort((a, b) => a._date - b._date)
     .map(({ _date, ...s }) => ({...s, whenFormatted: formatDate(_date)}))
 
+  const nextShow = shows[0]
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'MusicGroup',
+    name: band.name,
+    url: 'https://retrovers.com.br/',
+    genre: 'Rock',
+    image: 'https://retrovers.com.br/logo.png',
+    member: band.members.map(m => ({ '@type': 'Person', name: m.name })),
+    sameAs: [
+      band.playlists?.apple
+    ].filter(Boolean),
+    event: nextShow ? {
+      '@type': 'Event',
+      name: `${band.name} - ${nextShow.venue}`,
+      startDate: nextShow.date,
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      eventStatus: 'https://schema.org/EventScheduled',
+      image: nextShow.image ? `https://retrovers.com.br${nextShow.image}` : 'https://retrovers.com.br/logo.png',
+      location: {
+        '@type': 'Place',
+        name: nextShow.venue,
+        address: nextShow.location?.address || nextShow.city,
+      },
+      description: nextShow.description,
+      url: 'https://retrovers.com.br/',
+    } : undefined,
+  }
+
   return (
     <main>
+      <script type="application/ld+json" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Hero with logo background */}
       <section className="hero">
         <div className="hero-inner">
