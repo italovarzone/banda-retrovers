@@ -76,6 +76,17 @@
       "link": "https://maps.app.goo.gl/UvpSBcH1Q6VnLtqy9",
       "location": { "lat": -22.0149889, "lng": -47.4203611, "address": "Boutique'in Pirassununga, Pirassununga - SP" },
       "postUrl": "https://www.instagram.com/boutiquein.pirassununga?igsh=cXRoNnFhZ25jeXZw"
+    },
+    {
+      "id": "sp-06",
+      "venue": "Confraria Gastrobar Leme",
+      "city": "Leme/SP",
+      "date": "2026-02-14T20:30:00-03:00",
+      "image": "/images/confraria.jpg",
+      "description": "Retrovers estará de volta à Confraria Gastrobar Leme para mais uma noite inesquecível de rock nacional.",
+      "link": "https://maps.app.goo.gl/27bZy6BcGeXnjU63A",
+      "location": { "lat": -22.2112111, "lng": -47.5388588, "address": "Confraria Gastrobar Leme, Leme - SP" },
+      "postUrl": "https://www.instagram.com/confrariabarleme?igsh=NGFjNzg2amhvZmht"
     }
   ],
   "contact": {
