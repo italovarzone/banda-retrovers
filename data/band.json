@@ -54,6 +54,28 @@
       "link": "https://maps.app.goo.gl/Gnku26kfFDPXRwTWA",
       "location": { "lat": -22.3604094, "lng": -47.3885957, "address": "Bar do Urso Araras, Araras - SP" },
       "postUrl": "https://www.instagram.com/p/XXXXXXXXXXX/"
+    },
+    {
+      "id": "sp-04",
+      "venue": "Kaiowas Moto Clube",
+      "city": "Leme/SP",
+      "date": "2026-01-22T20:00:00-03:00",
+      "image": "/images/kaiowas.png",
+      "description": "Alô motoqueiros da região de Leme! A Retrovers vai agitar o Kaiowas Moto Clube com um show eletrizante cheio de clássicos do rock nacional.",
+      "link": "https://maps.app.goo.gl/zYVGNKzmMr69KzzW8",
+      "location": { "lat": -22.1708252, "lng": -47.3975704, "address": "Kaiowas Moto Clube, Leme - SP" },
+      "postUrl": "https://www.instagram.com/kaiowasmotoclube?igsh=MW96dHByc3M3M3F4dA=="
+    },
+    {
+      "id": "sp-05",
+      "venue": "Boutique'in",
+      "city": "Pirassununga/SP",
+      "date": "2026-01-24T20:00:00-03:00",
+      "image": "/images/boutiquein.png",
+      "description": "Retrovers ao vivo na Boutique'in Pirassununga, com os maiores clássicos do rock nacional.",
+      "link": "https://maps.app.goo.gl/UvpSBcH1Q6VnLtqy9",
+      "location": { "lat": -22.0149889, "lng": -47.4203611, "address": "Boutique'in Pirassununga, Pirassununga - SP" },
+      "postUrl": "https://www.instagram.com/boutiquein.pirassununga?igsh=cXRoNnFhZ25jeXZw"
     }
   ],
   "contact": {

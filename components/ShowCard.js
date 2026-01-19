@@ -69,11 +69,11 @@ export default function ShowCard({ show }){
             const hasPost = typeof show.postUrl === 'string' && show.postUrl.trim().length > 0
             if (hasPost) {
               return (
-                <a className="btn btn-accent" href={show.postUrl} target="_blank" rel="noopener noreferrer">Ver publicação</a>
+                <a className="btn btn-accent" href={show.postUrl} target="_blank" rel="noopener noreferrer">Instragram</a>
               )
             }
             return (
-              <button className="btn btn-accent" disabled title="Sem publicação disponível">Ver publicação</button>
+              <button className="btn btn-accent" disabled title="Sem publicação disponível">Instragram</button>
             )
           })()}
         </div>
