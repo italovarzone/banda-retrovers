@@ -20,14 +20,14 @@ Acesse: http://localhost:3000
   - `formats`: descrições de Acústico e Elétrico
   - `contact.whatsapp`: número com DDI (ex.: Brasil = 55) + DDD + número (ex.: `5519996538569`)
   - `contact.message`: mensagem padrão do WhatsApp
-- Imagens (PNG): pasta `public/images/`
-  - Você pode usar placeholders PNG remotos temporários.
-  - Ao adicionar seus PNGs locais em `public/images/`, use os caminhos locais (ex.: `/images/italo.jpeg`).
+- Imagens (PNG): agora servidas via Google Drive
+  - Em vez de `public/images`, as imagens são buscadas de uma pasta no Google Drive.
+  - Configure as variáveis de ambiente (ver seção Google Drive abaixo) e suba seus arquivos na pasta compartilhada.
+  - Para referenciar uma imagem, use o caminho lógico `/images/<arquivo>` (ex.: `/images/italo.jpeg`); o app converte para `/api/images/by-name?name=<arquivo>` e faz proxy do arquivo do Drive.
 
 ## Logo de fundo
 
-- Coloque seu arquivo PNG em `public/logo.png`. O herói usa esse logo em grande escala.
-  - Se preferir um placeholder temporário, mantenha o fundo sem logo ou substitua a regra em `app/globals.css` por uma URL remota.
+- Use `logo.png` e `logo_preto.png` na pasta do Drive e referencie como `/images/logo.png` e `/images/logo_preto.png`. O componente já usa `/api/images/by-name` por baixo.
 
 ## WhatsApp (Contate-nos)
 
@@ -51,6 +51,25 @@ Acesse: http://localhost:3000
   - `ADMIN_USERNAME` e `ADMIN_PASSWORD` (login para obter token)
   - `JWT_SECRET` (segredo do JWT)
   - `JWT_TTL_SECONDS` (opcional, validade do token em segundos)
+
+## Google Drive (Blob Storage)
+
+- O app usa a API do Google Drive para servir imagens da sua pasta.
+- Compartilhe a pasta com o e-mail da sua Service Account (Leitor) e obtenha o `folderId` (ID da pasta na URL do Drive).
+- Adicione ao `.env.local`:
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_EMAIL="sa-name@seu-projeto.iam.gserviceaccount.com"
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_DRIVE_FOLDER_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+- Como funciona:
+  - O frontend usa caminhos tipo `/images/arquivo.png`.
+  - O servidor resolve para `/api/images/by-name?name=arquivo.png`, procura na pasta do Drive e retorna o binário.
+  - Headers de cache: `Cache-Control: public, max-age=86400, immutable`.
+
+> Importante: A Service Account não tem acesso ao seu Drive pessoal por padrão. Compartilhe explicitamente a pasta com o e-mail da Service Account.
 
 - Endpoints:
   - `GET /api/shows?upcoming=1` — lista próximos shows ordenados por data

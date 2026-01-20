@@ -14,7 +14,8 @@ export default function ThemeLogo({ className = 'img contain', sizes = '(max-wid
     return () => obs.disconnect()
   }, [])
 
-  const src = isLight ? '/logo_preto.png' : '/logo.png'
+  const localName = isLight ? 'logo_preto.png' : 'logo.png'
+  const src = `/api/images/by-name?name=${encodeURIComponent(localName)}`
   return (
     <Image src={src} alt={alt} fill className={className} sizes={sizes} />
   )

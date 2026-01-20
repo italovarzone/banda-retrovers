@@ -50,11 +50,11 @@ export default async function Page() {
     contact: { whatsapp: '', message: '' },
     playlists: { apple: '' },
   }
+  const hdrs = await headers()
+  const host = hdrs.get('host') || 'localhost:3000'
+  const proto = hdrs.get('x-forwarded-proto') || 'http'
+  const origin = `${proto}://${host}`
   try {
-    const hdrs = await headers()
-    const host = hdrs.get('host') || 'localhost:3000'
-    const proto = hdrs.get('x-forwarded-proto') || 'http'
-    const origin = `${proto}://${host}`
     const [showsRes, bandRes] = await Promise.all([
       fetch(`${origin}/api/shows?upcoming=1`, { cache: 'no-store' }),
       fetch(`${origin}/api/band`, { cache: 'no-store' })
@@ -91,7 +91,7 @@ export default async function Page() {
     name: band.name,
     url: 'https://retrovers.com.br/',
     genre: 'Rock',
-    image: 'https://retrovers.com.br/logo.png',
+    image: `${origin}/api/images/by-name?name=logo.png`,
     member: band.members.map(m => ({ '@type': 'Person', name: m.name })),
     sameAs: [
       band.playlists?.apple
@@ -102,7 +102,16 @@ export default async function Page() {
       startDate: nextShow.date,
       eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
       eventStatus: 'https://schema.org/EventScheduled',
-      image: nextShow.image ? `https://retrovers.com.br${nextShow.image}` : 'https://retrovers.com.br/logo.png',
+      image: (() => {
+        if (!nextShow.image) return `${origin}/api/images/by-name?name=logo.png`
+        if (typeof nextShow.image === 'string' && nextShow.image.startsWith('/images/')) {
+          const name = nextShow.image.replace(/^\/images\//,'')
+          return `${origin}/api/images/by-name?name=${encodeURIComponent(name)}`
+        }
+        // external or already proxied
+        if (nextShow.image.startsWith('/api/images/')) return `${origin}${nextShow.image}`
+        return nextShow.image
+      })(),
       location: {
         '@type': 'Place',
         name: nextShow.venue,
@@ -146,7 +155,7 @@ export default async function Page() {
         <h2 className="section-title">Sobre a banda</h2>
         <div className="about">
           <div className="about-side">
-            <Image src={"/foto.png"} alt={band.name} fill className="img contain" sizes="(max-width: 1100px) 90vw, 40vw" />
+            <Image src={`/api/images/by-name?name=${encodeURIComponent('foto.png')}`} alt={band.name} fill className="img contain" sizes="(max-width: 1100px) 90vw, 40vw" />
           </div>
           <div className="about-text">
             {(band.about?.paragraphs || []).map((p, i) => (
@@ -163,7 +172,7 @@ export default async function Page() {
           {(band.members || []).map((m) => (
             <article key={m.name} className="member-card">
               <div className="avatar">
-                <Image src={m.image} alt={m.name} fill className="img" sizes="128px" />
+                <Image src={(typeof m.image === 'string' && m.image.startsWith('/images/')) ? `/api/images/by-name?name=${encodeURIComponent(m.image.replace(/^\/images\//,''))}` : m.image} alt={m.name} fill className="img" sizes="128px" />
               </div>
               <div>
                 <h3 className="member-name">{m.name}</h3>

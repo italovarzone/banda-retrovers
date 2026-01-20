@@ -93,7 +93,7 @@ export async function GET() {
                       venue: 'Meu Lugar',
                       city: 'Cidade/SP',
                       date: '2026-03-01T20:00:00-03:00',
-                      image: '/images/meulugar.png',
+                      image: '/api/images/by-name?name=meulugar.png',
                       description: 'Show elétrico',
                       link: 'https://maps.app.goo.gl/...',
                       location: { lat: -22.0, lng: -47.0, address: 'Endereço' },
@@ -142,7 +142,7 @@ export async function GET() {
                         { image: 'https://placehold.co/600x600/0f1317/e5e7eb.png?text=Geracao+1', caption: 'Primeiros anos' }
                       ] },
                       members: [
-                        { name: 'Ítalo Varzone', role: 'Guitarra / Vocal', image: '/images/italo.jpeg' }
+                        { name: 'Ítalo Varzone', role: 'Guitarra / Vocal', image: '/api/images/by-name?name=italo.jpeg' }
                       ],
                       formats: {
                         acoustic: 'Ideal para ambientes...',
