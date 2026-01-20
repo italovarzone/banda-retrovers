@@ -1,8 +1,8 @@
 import Image from 'next/image'
-import band from '../data/band.json'
 import ShowCard from '@/components/ShowCard'
 import ThemeLogo from '@/components/ThemeLogo'
 import PlaylistEmbeds from '@/components/PlaylistEmbeds'
+import { headers } from 'next/headers'
 
 function formatDate(dateOrIso) {
   try {
@@ -25,9 +25,9 @@ function parseShowDate(iso) {
   return new Date(sp)
 }
 
-function WhatsAppButton({ className = '', label = 'Contate-nos' }) {
-  const phone = band?.contact?.whatsapp || '5519996538569'
-  const message = encodeURIComponent(band?.contact?.message || 'Olá! Quero contratar a banda para um show.')
+function WhatsAppButton({ className = '', label = 'Contate-nos', contact }) {
+  const phone = contact?.whatsapp || '5519996538569'
+  const message = encodeURIComponent(contact?.message || 'Olá! Quero contratar a banda para um show.')
   const href = `https://wa.me/${phone}?text=${message}`
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className={`btn btn-accent ${className}`}>
@@ -39,14 +39,50 @@ function WhatsAppButton({ className = '', label = 'Contate-nos' }) {
   )
 }
 
-export default function Page() {
+export default async function Page() {
   const now = Date.now()
-  const shows = (band.shows || [])
-    .slice()
-    .map(s => ({...s, _date: parseShowDate(s.date)}))
-    .filter(s => s._date instanceof Date && !isNaN(s._date) && s._date.getTime() >= now)
-    .sort((a, b) => a._date - b._date)
-    .map(({ _date, ...s }) => ({...s, whenFormatted: formatDate(_date)}))
+  let shows = []
+  let band = {
+    name: 'Retrôvers',
+    about: { paragraphs: [] },
+    members: [],
+    formats: { acoustic: '', electric: '' },
+    contact: { whatsapp: '', message: '' },
+    playlists: { apple: '' },
+  }
+  try {
+    const hdrs = await headers()
+    const host = hdrs.get('host') || 'localhost:3000'
+    const proto = hdrs.get('x-forwarded-proto') || 'http'
+    const origin = `${proto}://${host}`
+    const [showsRes, bandRes] = await Promise.all([
+      fetch(`${origin}/api/shows?upcoming=1`, { cache: 'no-store' }),
+      fetch(`${origin}/api/band`, { cache: 'no-store' })
+    ])
+    if (showsRes.ok) {
+      const apiShows = await showsRes.json()
+      shows = (apiShows || [])
+        .map(s => ({...s, _date: parseShowDate(s.date)}))
+        .filter(s => s._date instanceof Date && !isNaN(s._date) && s._date.getTime() >= now)
+        .sort((a, b) => a._date - b._date)
+        .map(({ _date, ...s }) => ({...s, whenFormatted: formatDate(_date)}))
+    }
+    if (bandRes.ok) {
+      const apiBand = await bandRes.json()
+      band = {
+        ...band,
+        ...apiBand,
+        about: apiBand?.about || band.about,
+        members: Array.isArray(apiBand?.members) ? apiBand.members : band.members,
+        formats: apiBand?.formats || band.formats,
+        contact: apiBand?.contact || band.contact,
+        playlists: apiBand?.playlists || band.playlists,
+      }
+    }
+  } catch (e) {
+    // fall back to empty shows on error
+    shows = []
+  }
 
   const nextShow = shows[0]
   const jsonLd = {
@@ -87,7 +123,7 @@ export default function Page() {
           <p className="subtitle">Rock nacional anos 80 a 2000 — shows acústico e elétrico</p>
           <div className="hero-actions">
             <a href="#shows" className="btn">Próximos Shows</a>
-            <WhatsAppButton />
+            <WhatsAppButton contact={band.contact} />
           </div>
         </div>
       </section>
@@ -113,7 +149,7 @@ export default function Page() {
             <Image src={"/foto.png"} alt={band.name} fill className="img contain" sizes="(max-width: 1100px) 90vw, 40vw" />
           </div>
           <div className="about-text">
-            {band.about.paragraphs.map((p, i) => (
+            {(band.about?.paragraphs || []).map((p, i) => (
               <p key={i} className="para">{p}</p>
             ))}
           </div>
@@ -124,7 +160,7 @@ export default function Page() {
       <section id="artistas" className="section">
         <h2 className="section-title">Artistas</h2>
         <div className="members-grid">
-          {band.members.map((m) => (
+          {(band.members || []).map((m) => (
             <article key={m.name} className="member-card">
               <div className="avatar">
                 <Image src={m.image} alt={m.name} fill className="img" sizes="128px" />
@@ -144,7 +180,7 @@ export default function Page() {
         <div className="plans">
           <article className="plan plan-acoustic">
             <h3>Acústico</h3>
-            <p className="plan-desc">{band.formats.acoustic}</p>
+            <p className="plan-desc">{band.formats?.acoustic}</p>
             <ul className="plan-list">
               <li>Volume controlado e clima intimista</li>
               <li>Violões e percussões leves</li>
@@ -154,13 +190,13 @@ export default function Page() {
           <article className="plan plan-electric featured">
             <div className="badge">Mais pedido</div>
             <h3>Elétrico</h3>
-            <p className="plan-desc">{band.formats.electric}</p>
+            <p className="plan-desc">{band.formats?.electric}</p>
             <ul className="plan-list">
               <li>Energia alta e presença de palco</li>
               <li>Guitarras marcantes e repertório de hits</li>
               <li>Perfeito para festas e eventos maiores</li>
             </ul>
-            <WhatsAppButton className="plan-cta" label="Reservar Elétrico" />
+            <WhatsAppButton className="plan-cta" label="Reservar Elétrico" contact={band.contact} />
           </article>
         </div>
       </section>
@@ -174,7 +210,7 @@ export default function Page() {
       </section>
 
       {/* Floating WhatsApp */}
-      <WhatsAppButton className="floating" />
+      <WhatsAppButton className="floating" contact={band.contact} />
 
       <footer className="footer">
         <small>© {new Date().getFullYear()} {band.name}. Todos os direitos reservados.</small>

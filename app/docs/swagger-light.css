@@ -1,0 +1,50 @@
+/* Force light appearance within docs page */
+.docs-light {
+  background: #ffffff !important;
+  color: #111827 !important; /* gray-900 */
+  color-scheme: light;
+}
+
+/* Ensure Swagger UI uses its default light palette */
+.docs-light .swagger-ui {
+  background: #ffffff !important;
+}
+.docs-light .swagger-ui .topbar {
+  background: #f9fafb !important; /* gray-50 */
+  border-bottom: 1px solid #e5e7eb !important; /* gray-200 */
+}
+.docs-light .swagger-ui .info .title,
+.docs-light .swagger-ui .opblock-tag,
+.docs-light .swagger-ui .opblock .opblock-summary-description,
+.docs-light .swagger-ui .opblock .opblock-summary-path,
+.docs-light .swagger-ui .opblock .opblock-summary-method,
+.docs-light .swagger-ui .markdown p,
+.docs-light .swagger-ui .model-title {
+  color: #111827 !important;
+}
+
+/* Panels and cards */
+.docs-light .swagger-ui .opblock {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+.docs-light .swagger-ui .opblock .opblock-section-header {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+
+/* Inputs and dropdowns */
+.docs-light .swagger-ui input,
+.docs-light .swagger-ui select,
+.docs-light .swagger-ui textarea {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important; /* gray-300 */
+}
+
+/* Response and request bodies */
+.docs-light .swagger-ui .response,
+.docs-light .swagger-ui .request-body {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+}

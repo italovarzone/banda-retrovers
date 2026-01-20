@@ -2,14 +2,19 @@
   "name": "banda-retrovers-landing",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "migrate:shows": "node ./scripts/migrate-shows.js"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
+    "firebase-admin": "^13.6.0",
     "next": "^16.0.10",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "swagger-ui-react": "^5.31.0"
   }
 }

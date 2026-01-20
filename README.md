@@ -1,6 +1,6 @@
 # Banda Retrovers — Landing Page (Next.js)
 
-Landing page minimalista e moderna em Next.js (App Router), abastecida por um JSON simples.
+ Landing page minimalista e moderna em Next.js (App Router), abastecida por Firestore via endpoints.
 
 ## Rodar localmente
 
@@ -13,19 +13,16 @@ Acesse: http://localhost:3000
 
 ## Onde editar o conteúdo
 
-- Dados principais: `data/band.json`
+- Dados principais via Firestore (`band/main`) acessados pelo endpoint `GET /api/band`:
   - `name`: nome da banda
   - `members`: artistas (nome, função, imagem)
   - `about.paragraphs`: textos da seção Sobre
-  - `about.generations`: 3 imagens (legendas diferentes por geração)
   - `formats`: descrições de Acústico e Elétrico
-  - `shows`: lista com imagem do lugar, descrição, data/hora (ISO) e link opcional do local
   - `contact.whatsapp`: número com DDI (ex.: Brasil = 55) + DDD + número (ex.: `5519996538569`)
   - `contact.message`: mensagem padrão do WhatsApp
-
 - Imagens (PNG): pasta `public/images/`
-  - Você pode usar placeholders PNG remotos temporários (já configurados no JSON via `placehold.co`).
-  - Ao adicionar seus PNGs locais em `public/images/`, troque os caminhos no JSON para o arquivo local.
+  - Você pode usar placeholders PNG remotos temporários.
+  - Ao adicionar seus PNGs locais em `public/images/`, use os caminhos locais (ex.: `/images/italo.jpeg`).
 
 ## Logo de fundo
 
@@ -34,7 +31,7 @@ Acesse: http://localhost:3000
 
 ## WhatsApp (Contate-nos)
 
-- O botão "Contate-nos" abre a conversa com o número definido em `data/band.json` via `https://wa.me/<numero>?text=<mensagem>`.
+- O botão "Contate-nos" usa os dados em Firestore (`band.main.contact`) via `https://wa.me/<numero>?text=<mensagem>`.
 - Certifique-se de usar o formato com DDI: ex.: `5519996538569` para +55 (Brasil), DDD 19.
 
 ## Estrutura das seções
@@ -45,10 +42,64 @@ Acesse: http://localhost:3000
 - Sobre a Banda: história (parágrafos) + 3 imagens representando gerações
 - Formatos: Acústico e Elétrico
 
+## Backend (Firebase)
+
+- Configure `.env.local` com variáveis do Firebase Admin:
+  - `FIREBASE_PROJECT_ID`
+  - `FIREBASE_CLIENT_EMAIL`
+  - `FIREBASE_PRIVATE_KEY` (com quebras de linha como `\n`)
+  - `ADMIN_USERNAME` e `ADMIN_PASSWORD` (login para obter token)
+  - `JWT_SECRET` (segredo do JWT)
+  - `JWT_TTL_SECONDS` (opcional, validade do token em segundos)
+
+- Endpoints:
+  - `GET /api/shows?upcoming=1` — lista próximos shows ordenados por data
+  - `POST /api/auth` — faz login e retorna token JWT.
+    - Exemplo:
+
+      ```bash
+      curl -X POST http://localhost:3000/api/auth \
+        -H "Content-Type: application/json" \
+        -d '{"username":"admin","password":"SUA_SENHA"}'
+      ```
+
+      Resposta:
+
+      ```json
+      { "token": "<JWT>", "expiresIn": 43200 }
+      ```
+
+  - `POST /api/shows` — cria/atualiza show. Header: `Authorization: Bearer <JWT>`
+    - Body exemplo:
+
+      ```json
+      {
+        "id": "sp-07",
+        "venue": "Meu Lugar",
+        "city": "Cidade/SP",
+        "date": "2026-03-01T20:00:00-03:00",
+        "image": "/images/meulugar.png",
+        "description": "Show elétrico",
+        "link": "https://maps.app.goo.gl/...",
+        "location": { "lat": -22.0, "lng": -47.0, "address": "Endereço" },
+        "postUrl": "https://www.instagram.com/p/.../"
+      }
+      ```
+
+- A página principal agora busca os shows via o endpoint (`/api/shows`).
+ - A página principal também busca os dados da banda via `GET /api/band`.
+
+- Migração dos shows do `data/band.json` para Firestore:
+  - Após configurar `.env.local`, execute:
+
+    ```bash
+    npm run migrate:shows
+    ```
+
 ## Repertório (Playlists)
 
 - A seção "Repertório" exibe players incorporados do Spotify e Apple Music.
-- Configure os links adicionando opcionalmente em `data/band.json` o objeto:
+- Configure os links em Firestore no doc `band/main`:
 
 ```json
 {
@@ -63,6 +114,34 @@ Acesse: http://localhost:3000
   - Spotify: cole o link da playlist; o site converte para `open.spotify.com/embed/...` automaticamente.
   - Apple Music: use o link público; será convertido para `embed.music.apple.com/...` automaticamente.
   - Se os links não forem definidos, um aviso amigável aparecerá na seção.
+
+## Band (Firestore)
+
+- Endpoint para ler/atualizar dados da banda:
+  - `GET /api/band` — retorna doc `band/main`
+  - `POST /api/band` — atualiza doc; Header: `Authorization: Bearer <JWT>`
+    - Body exemplo:
+
+      ```json
+      {
+        "name": "Retrôvers",
+        "about": { "paragraphs": ["Texto 1", "Texto 2"] },
+        "members": [
+          { "name": "Ítalo Varzone", "role": "Guitarra / Vocal", "image": "/images/italo.jpeg" }
+        ],
+        "formats": {
+          "acoustic": "Ideal para ambientes...",
+          "electric": "Para eventos maiores..."
+        },
+        "contact": {
+          "whatsapp": "5519991480440",
+          "message": "Olá! Gostaria de mais informações..."
+        },
+        "playlists": {
+          "apple": "https://music.apple.com/..."
+        }
+      }
+      ```
 
 ## Build e produção
 
