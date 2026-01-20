@@ -106,8 +106,8 @@ html {
   background-image: url("/logo.png");
   background-repeat: no-repeat;
   background-position: center;
-  /* Fill full viewport width; keep aspect ratio */
   background-size: min(2000px, 100vw) auto;
+  mask-image: linear-gradient(to top, transparent 0%, black 30%);
 }
 /* Light theme overrides removed */
 .hero-inner {
