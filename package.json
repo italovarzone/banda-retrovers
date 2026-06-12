@@ -10,6 +10,7 @@
     "migrate:shows": "node ./scripts/migrate-shows.js"
   },
   "dependencies": {
+    "cloudinary": "^2.10.0",
     "dotenv": "^17.2.3",
     "firebase-admin": "^13.6.0",
     "googleapis": "^132.0.0",

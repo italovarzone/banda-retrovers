@@ -278,14 +278,27 @@ function ImagePicker({ open, onClose, onSelect, current }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    setLoading(true)
-    fetch('/api/images')
-      .then(r => r.json())
-      .then(d => { setImages(Array.isArray(d) ? d : []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [open])
+useEffect(() => {
+  if (!open) return
+
+  setLoading(true)
+
+  fetch('/api/images')
+    .then(r => r.json())
+    .then(d => {
+      console.log('API RETORNOU:', d)
+      setImages(Array.isArray(d) ? d : [])
+      setLoading(false)
+    })
+    .catch(err => {
+      console.error(err)
+      setLoading(false)
+    })
+}, [open])
+
+useEffect(() => {
+  console.log('IMAGES STATE:', images)
+}, [images])
 
   return (
     <Sheet open={open} onClose={onClose} title="Selecionar imagem" zIndex={60}>
