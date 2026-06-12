@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Timestamp } from 'firebase-admin/firestore'
 import { db } from '@/lib/firebaseAdmin'
-import { isAuthorizedRequest } from '@/lib/auth'
+import { isAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,8 +40,7 @@ export async function GET(request) {
 }
 
 function isAuthorized(request) {
-  const payload = isAuthorizedRequest(request)
-  return !!payload
+  return isAdmin(request)
 }
 
 function validateShow(body) {
@@ -52,6 +51,22 @@ function validateShow(body) {
   const d = new Date(body.date)
   if (isNaN(d)) return 'Data inválida (use ISO com timezone)'
   return null
+}
+
+export async function DELETE(request) {
+  try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
+    await db.collection('shows').doc(id).delete()
+    return NextResponse.json({ ok: true }, { status: 200 })
+  } catch (err) {
+    console.error('DELETE /api/shows error', err)
+    return NextResponse.json({ error: 'Failed to delete show' }, { status: 500 })
+  }
 }
 
 export async function POST(request) {

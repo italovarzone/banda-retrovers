@@ -1,0 +1,848 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+
+const NAV_H = 60
+const TOP_H = 56
+
+const C = {
+  bg: '#0b0d10',
+  card: '#121417',
+  surface: '#1a1d22',
+  accent: '#b89607',
+  accentText: '#d6c25b',
+  accentDim: 'rgba(184,150,7,0.12)',
+  text: '#f1f5f9',
+  muted: '#9aa3ad',
+  soft: '#cbd5e1',
+  border: 'rgba(255,255,255,0.08)',
+  danger: '#f87171',
+  dangerDim: 'rgba(248,113,113,0.10)',
+  dangerBorder: 'rgba(248,113,113,0.28)',
+  successDim: 'rgba(74,222,128,0.10)',
+  successBorder: 'rgba(74,222,128,0.30)',
+  success: '#4ade80',
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+// Normaliza qualquer formato legado do campo image para filename puro
+// Ex: "/images/bar.png" → "bar.png" | "/api/images/by-name?name=bar.png" → "bar.png"
+function normalizeImageName(image) {
+  if (!image) return ''
+  if (image.startsWith('/images/')) return image.slice('/images/'.length)
+  if (image.includes('/by-name?name=')) {
+    try { return decodeURIComponent(image.split('?name=')[1]) } catch { return '' }
+  }
+  return image
+}
+
+// Retorna a URL correta para exibir qualquer valor do campo image
+function imgSrc(image) {
+  if (!image) return null
+  if (image.startsWith('http')) return image
+  // Drive by-ID direto
+  if (/^\/api\/images\/[^?/]+$/.test(image)) return image
+  // qualquer outro formato → normaliza e passa pelo by-name
+  // (by-name checa local primeiro, depois Drive)
+  const name = normalizeImageName(image)
+  return `/api/images/by-name?name=${encodeURIComponent(name)}`
+}
+
+function isoToLocal(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    const p = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  } catch { return '' }
+}
+
+function fmtDate(iso) {
+  if (!iso) return { day: '—', time: '' }
+  const d = new Date(iso)
+  return {
+    day: d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }),
+    time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + 'h',
+  }
+}
+
+const EMPTY_SHOW = { id: '', venue: '', city: '', date: '', description: '', link: '', postUrl: '', image: '' }
+
+// ─── atoms ────────────────────────────────────────────────────────────────────
+
+function ErrorMsg({ msg }) {
+  if (!msg) return null
+  return (
+    <div style={{ background: C.dangerDim, border: `1px solid ${C.dangerBorder}`, borderRadius: '10px', padding: '0.65rem 0.9rem', color: C.danger, fontSize: '13px', marginBottom: '1rem' }}>
+      {msg}
+    </div>
+  )
+}
+
+function SuccessMsg({ msg }) {
+  if (!msg) return null
+  return (
+    <div style={{ background: C.successDim, border: `1px solid ${C.successBorder}`, borderRadius: '10px', padding: '0.65rem 0.9rem', color: C.success, fontSize: '13px', marginBottom: '1rem' }}>
+      {msg}
+    </div>
+  )
+}
+
+function Field({ label, children, required }) {
+  return (
+    <div style={{ marginBottom: '1rem' }}>
+      <label style={{ display: 'block', color: C.soft, fontSize: '11px', fontWeight: 700, marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}{required && ' *'}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const inputStyle = {
+  width: '100%', background: C.surface, border: `1px solid ${C.border}`,
+  borderRadius: '10px', padding: '0.7rem 0.85rem', color: C.text,
+  fontSize: '15px', boxSizing: 'border-box', outline: 'none',
+}
+
+function TextInput({ label, value, onChange, type = 'text', required, placeholder }) {
+  return (
+    <Field label={label} required={required}>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} style={inputStyle} required={required} />
+    </Field>
+  )
+}
+
+function Textarea({ label, value, onChange, rows = 6 }) {
+  return (
+    <Field label={label}>
+      <textarea value={value} onChange={e => onChange(e.target.value)}
+        rows={rows} style={{ ...inputStyle, resize: 'vertical' }} />
+    </Field>
+  )
+}
+
+function PrimaryBtn({ children, onClick, disabled, type = 'button', style: extra }) {
+  return (
+    <button type={type} onClick={onClick} disabled={disabled}
+      style={{ background: disabled ? '#5a4a05' : C.accent, color: '#0b0d10', border: 'none', borderRadius: '12px', padding: '0.8rem 1.25rem', fontWeight: 800, fontSize: '15px', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.7 : 1, ...extra }}>
+      {children}
+    </button>
+  )
+}
+
+function GhostBtn({ children, onClick, type = 'button', danger }) {
+  return (
+    <button type={type} onClick={onClick}
+      style={{ background: 'transparent', color: danger ? C.danger : C.soft, border: `1px solid ${danger ? C.dangerBorder : C.border}`, borderRadius: '10px', padding: '0.7rem 1rem', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>
+      {children}
+    </button>
+  )
+}
+
+// ─── places autocomplete ──────────────────────────────────────────────────────
+
+function PlacesInput({ value, onChangeName, onSelect }) {
+  const [query, setQuery] = useState(value || '')
+  const [items, setItems] = useState([])
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const timer = useRef(null)
+
+  useEffect(() => { setQuery(value || '') }, [value])
+
+  function handleChange(v) {
+    setQuery(v)
+    onChangeName(v)
+    clearTimeout(timer.current)
+    if (v.length < 2) { setItems([]); setOpen(false); return }
+    setBusy(true)
+    timer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(v)}`)
+        const data = await res.json()
+        setItems(Array.isArray(data) ? data : [])
+        setOpen(true)
+      } catch { setItems([]) }
+      finally { setBusy(false) }
+    }, 420)
+  }
+
+  async function pick(place) {
+    setItems([])
+    setOpen(false)
+    setBusy(true)
+    try {
+      let details
+      if (place.needsDetails) {
+        // Google Places: precisa de uma segunda chamada para coordenadas
+        const res = await fetch(`/api/places/details?id=${encodeURIComponent(place.id)}`)
+        details = await res.json()
+        if (details.error) throw new Error(details.error)
+      } else {
+        // Nominatim: já temos tudo
+        details = {
+          name: place.name,
+          city: place.city || '',
+          lat: place.lat,
+          lng: place.lng,
+          link: place.link,
+        }
+      }
+      setQuery(details.name)
+      onSelect(details)
+    } catch (err) {
+      console.error('PlacesInput pick error', err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        <input type="text" value={query} required
+          onChange={e => handleChange(e.target.value)}
+          onFocus={() => items.length > 0 && setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 180)}
+          style={inputStyle} />
+        {busy && (
+          <span style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: '11px' }}>
+            buscando...
+          </span>
+        )}
+      </div>
+      {open && items.length > 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: '10px', zIndex: 200, maxHeight: '230px', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          {items.map((place, i) => (
+            <button key={place.id || i} type="button" onMouseDown={() => pick(place)}
+              style={{ display: 'block', width: '100%', background: 'none', border: 'none', borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : 'none', padding: '0.7rem 0.9rem', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ color: C.text, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
+              <div style={{ color: C.muted, fontSize: '11px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.address}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FAB({ onClick }) {
+  return (
+    <button onClick={onClick}
+      style={{ position: 'fixed', bottom: `${NAV_H + 16}px`, right: '1rem', width: '54px', height: '54px', borderRadius: '50%', background: C.accent, border: 'none', color: '#0b0d10', fontSize: '1.75rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 24px rgba(184,150,7,0.45)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+      +
+    </button>
+  )
+}
+
+// ─── bottom sheet ─────────────────────────────────────────────────────────────
+
+function Sheet({ open, onClose, title, children, zIndex = 50 }) {
+  return (
+    <>
+      {open && (
+        <div onClick={onClose}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: zIndex - 1 }} />
+      )}
+      <div style={{
+        position: 'fixed', bottom: 0, left: '50%',
+        transform: `translateX(-50%) translateY(${open ? '0' : '110%'})`,
+        width: '100%', maxWidth: '430px', background: C.card,
+        borderRadius: '20px 20px 0 0', zIndex, transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
+        maxHeight: '92dvh', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ padding: '0.85rem 1.25rem 0.65rem', flexShrink: 0 }}>
+          <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: C.border, margin: '0 auto 0.85rem' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: C.text }}>{title}</span>
+            <button onClick={onClose}
+              style={{ background: C.surface, border: 'none', color: C.muted, cursor: 'pointer', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              ×
+            </button>
+          </div>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '0 1.25rem 2rem', flex: 1 }}>
+          {children}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── image picker ─────────────────────────────────────────────────────────────
+
+function ImagePicker({ open, onClose, onSelect, current }) {
+  const [images, setImages] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    fetch('/api/images')
+      .then(r => r.json())
+      .then(d => { setImages(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [open])
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Selecionar imagem" zIndex={60}>
+      {loading && <p style={{ color: C.muted, textAlign: 'center', padding: '2rem 0' }}>Carregando imagens...</p>}
+      {!loading && images.length === 0 && (
+        <p style={{ color: C.muted, textAlign: 'center', padding: '2rem 0' }}>
+          Nenhuma imagem cadastrada.<br />
+          <span style={{ fontSize: '12px' }}>Cadastre um bar na aba Bares.</span>
+        </p>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem', paddingTop: '0.25rem' }}>
+        {images.map(img => {
+          const sel = normalizeImageName(current) === img.name
+          return (
+            <button key={img.id} onClick={() => { onSelect(img.name); onClose() }}
+              style={{ background: sel ? C.accentDim : C.surface, border: `2px solid ${sel ? C.accent : 'transparent'}`, borderRadius: '12px', padding: 0, cursor: 'pointer', overflow: 'hidden', aspectRatio: '4/3', position: 'relative', display: 'block', width: '100%' }}>
+              <img src={img.src} alt={img.name} loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', padding: '0.75rem 0.5rem 0.4rem' }}>
+                <span style={{ color: '#fff', fontSize: '11px', fontWeight: 700, lineHeight: 1 }}>
+                  {img.name.replace(/\.[^.]+$/, '')}
+                </span>
+              </div>
+              {sel && (
+                <div style={{ position: 'absolute', top: '6px', right: '6px', background: C.accent, borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: '#0b0d10' }}>✓</div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </Sheet>
+  )
+}
+
+// ─── show form sheet ──────────────────────────────────────────────────────────
+
+function ShowForm({ open, onClose, editing, onSaved }) {
+  const [form, setForm] = useState(EMPTY_SHOW)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setError('')
+    setForm(editing
+      ? { id: editing.id, venue: editing.venue || '', city: editing.city || '', date: isoToLocal(editing.date), description: editing.description || '', link: editing.link || '', postUrl: editing.postUrl || '', image: editing.image || '' }
+      : EMPTY_SHOW)
+  }, [open, editing])
+
+  const set = (k) => (v) => setForm(p => ({ ...p, [k]: v }))
+
+  async function submit(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const body = { ...form, date: form.date ? new Date(form.date).toISOString() : '' }
+      if (!body.id) delete body.id
+      const res = await fetch('/api/shows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+      onSaved()
+      onClose()
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <>
+      <Sheet open={open && !pickerOpen} onClose={onClose} title={editing ? 'Editar Show' : 'Novo Show'}>
+        <form onSubmit={submit}>
+          <ErrorMsg msg={error} />
+          <Field label="Local / Venue" required>
+            <PlacesInput
+              key={editing?.id ?? 'new'}
+              value={form.venue}
+              onChangeName={set('venue')}
+              onSelect={({ name, city, lat, lng, link }) =>
+                setForm(p => ({ ...p, venue: name, city, link, location: { lat, lng, address: name } }))
+              }
+            />
+          </Field>
+          <TextInput label="Cidade" value={form.city} onChange={set('city')} required />
+          <TextInput label="Data e hora" type="datetime-local" value={form.date} onChange={set('date')} required />
+
+          {/* image selector */}
+          <Field label="Imagem">
+            <button type="button" onClick={() => setPickerOpen(true)}
+              style={{ width: '100%', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '0', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left' }}>
+              {form.image ? (
+                <>
+                  <img src={imgSrc(form.image)} alt=""
+                    style={{ width: '64px', height: '48px', objectFit: 'cover', flexShrink: 0 }} />
+                  <span style={{ color: C.accentText, fontSize: '14px', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {form.image.replace(/\.[^.]+$/, '')}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: C.muted, fontSize: '14px', padding: '0.7rem 0.85rem' }}>Toque para selecionar...</span>
+              )}
+              <span style={{ color: C.muted, paddingRight: '0.85rem', fontSize: '18px' }}>›</span>
+            </button>
+            {form.image && (
+              <button type="button" onClick={() => set('image')('')}
+                style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '12px', marginTop: '0.3rem', padding: 0 }}>
+                Remover imagem
+              </button>
+            )}
+          </Field>
+
+          <Textarea label="Descrição" value={form.description} onChange={set('description')} />
+          <TextInput label="Link do mapa (Google Maps)" value={form.link} onChange={set('link')} />
+          <TextInput label="Link do post (Instagram)" value={form.postUrl} onChange={set('postUrl')} />
+
+          <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.5rem' }}>
+            <GhostBtn onClick={onClose}>Cancelar</GhostBtn>
+            <PrimaryBtn type="submit" disabled={loading} style={{ flex: 1 }}>
+              {loading ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar show'}
+            </PrimaryBtn>
+          </div>
+        </form>
+      </Sheet>
+
+      <ImagePicker open={pickerOpen} onClose={() => setPickerOpen(false)}
+        onSelect={set('image')} current={form.image} />
+    </>
+  )
+}
+
+// ─── shows tab ────────────────────────────────────────────────────────────────
+
+function ShowsTab() {
+  const [shows, setShows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/shows')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setShows(data)
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleDelete(id) {
+    if (!confirm('Deletar este show?')) return
+    try {
+      const res = await fetch(`/api/shows?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Erro ao deletar')
+      setShows(p => p.filter(s => s.id !== id))
+    } catch (e) { setError(e.message) }
+  }
+
+  const now = new Date()
+
+  return (
+    <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
+      <ErrorMsg msg={error} />
+
+      {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
+
+      {!loading && shows.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: C.muted }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎸</div>
+          <p style={{ margin: 0 }}>Nenhum show cadastrado.</p>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '13px' }}>Toque no + para adicionar.</p>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {shows.map(show => {
+          const d = new Date(show.date)
+          const past = d < now
+          const { day, time } = fmtDate(show.date)
+          return (
+            <div key={show.id}
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden', opacity: past ? 0.6 : 1 }}>
+              <div style={{ display: 'flex', gap: '0.85rem', padding: '1rem' }}>
+                {/* image or date badge */}
+                {show.image ? (
+                  <div style={{ width: '64px', height: '64px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
+                    <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ) : (
+                  <div style={{ background: past ? C.surface : C.accentDim, borderRadius: '10px', padding: '0.5rem 0.6rem', textAlign: 'center', minWidth: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ color: past ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>{day}</div>
+                    <div style={{ color: past ? C.soft : C.accent, fontSize: '13px', fontWeight: 800 }}>{time}</div>
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, color: C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {show.venue}
+                  </div>
+                  <div style={{ color: C.muted, fontSize: '13px', marginTop: '1px' }}>{show.city}</div>
+                  {show.image && (
+                    <div style={{ color: C.muted, fontSize: '12px', marginTop: '2px' }}>{day} · {time}</div>
+                  )}
+                  {show.description && (
+                    <div style={{ color: C.soft, fontSize: '12px', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {show.description}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
+                <button onClick={() => { setEditing(show); setFormOpen(true) }}
+                  style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
+                  ✏️ Editar
+                </button>
+                <button onClick={() => handleDelete(show.id)}
+                  style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
+                  🗑 Deletar
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <FAB onClick={() => { setEditing(null); setFormOpen(true) }} />
+
+      <ShowForm open={formOpen} onClose={() => setFormOpen(false)}
+        editing={editing} onSaved={load} />
+    </div>
+  )
+}
+
+// ─── bares tab ────────────────────────────────────────────────────────────────
+
+function BaresTab() {
+  const [images, setImages] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // create
+  const [createOpen, setCreateOpen] = useState(false)
+  const [barName, setBarName] = useState('')
+  const [file, setFile] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const fileRef = useRef()
+
+  // edit
+  const [editOpen, setEditOpen] = useState(false)
+  const [editing, setEditing] = useState(null) // img object
+  const [editName, setEditName] = useState('')
+  const [editFile, setEditFile] = useState(null)
+  const [editPreview, setEditPreview] = useState(null)
+  const editFileRef = useRef()
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/images')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setImages(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setError(`Erro ao carregar imagens: ${e.message}`)
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  function openCreate() { setError(''); setBarName(''); setFile(null); setPreview(null); setCreateOpen(true) }
+
+  function openEdit(img) {
+    setEditing(img)
+    setEditName(img.name.replace(/\.[^.]+$/, ''))
+    setEditFile(null)
+    setEditPreview(null)
+    setError('')
+    setEditOpen(true)
+  }
+
+  async function handleUpload(e) {
+    e.preventDefault()
+    if (!barName.trim() || !file) return
+    setSaving(true); setError(''); setSuccess('')
+    try {
+      const fd = new FormData()
+      fd.append('name', barName.trim())
+      fd.append('file', file)
+      const res = await fetch('/api/images', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar')
+      setSuccess(`"${data.name.replace(/\.[^.]+$/, '')}" cadastrado!`)
+      setBarName(''); setFile(null); setPreview(null)
+      if (fileRef.current) fileRef.current.value = ''
+      setCreateOpen(false)
+      await load()
+    } catch (e) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault()
+    if (!editName.trim()) return
+    setSaving(true); setError(''); setSuccess('')
+    try {
+      const fd = new FormData()
+      fd.append('oldName', editing.name)
+      fd.append('newName', editName.trim())
+      if (editFile) fd.append('file', editFile)
+      const res = await fetch('/api/images', { method: 'PUT', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao editar')
+      setSuccess(`"${data.name.replace(/\.[^.]+$/, '')}" atualizado!`)
+      setEditOpen(false)
+      await load()
+    } catch (e) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
+  async function handleDelete(img) {
+    if (!confirm(`Deletar "${img.name.replace(/\.[^.]+$/, '')}"?`)) return
+    setError(''); setSuccess('')
+    try {
+      const params = img.local !== false
+        ? `name=${encodeURIComponent(img.name)}`
+        : `id=${encodeURIComponent(img.id)}&name=${encodeURIComponent(img.name)}`
+      const res = await fetch(`/api/images?${params}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao deletar')
+      setImages(p => p.filter(i => i.name !== img.name))
+      setSuccess(`"${img.name.replace(/\.[^.]+$/, '')}" removido.`)
+    } catch (e) { setError(e.message) }
+  }
+
+  return (
+    <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
+      <SuccessMsg msg={success} />
+      <ErrorMsg msg={error} />
+
+      {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
+
+      {!loading && images.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: C.muted }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🏠</div>
+          <p style={{ margin: 0 }}>Nenhum bar cadastrado ainda.</p>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '13px' }}>Toque no + para adicionar.</p>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+        {images.map(img => (
+          <div key={img.name} style={{ background: C.card, borderRadius: '14px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+            <div style={{ aspectRatio: '4/3', overflow: 'hidden' }}>
+              <img src={img.src} alt={img.name} loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+            <div style={{ padding: '0.5rem 0.75rem 0' }}>
+              <div style={{ color: C.soft, fontSize: '13px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {img.name.replace(/\.[^.]+$/, '')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', borderTop: `1px solid ${C.border}`, marginTop: '0.5rem' }}>
+              <button onClick={() => openEdit(img)}
+                style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.65rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
+                ✏️ Editar
+              </button>
+              <button onClick={() => handleDelete(img)}
+                style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.65rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
+                🗑 Deletar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <FAB onClick={openCreate} />
+
+      {/* ── sheet: criar ── */}
+      <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="Cadastrar Bar">
+        <form onSubmit={handleUpload}>
+          <ErrorMsg msg={error} />
+          <TextInput label="Nome do bar" value={barName} onChange={setBarName} required placeholder="Ex: Bar do Zé" />
+          <Field label="Foto do bar *">
+            <input ref={fileRef} type="file" accept="image/*" required
+              onChange={e => { const f = e.target.files[0]; setFile(f||null); setPreview(f ? URL.createObjectURL(f) : null) }}
+              style={{ color: C.soft, fontSize: '14px', width: '100%', cursor: 'pointer' }} />
+          </Field>
+          {preview && (
+            <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.25rem', maxHeight: '200px' }}>
+              <img src={preview} alt="preview" style={{ width: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '0.65rem' }}>
+            <GhostBtn onClick={() => setCreateOpen(false)}>Cancelar</GhostBtn>
+            <PrimaryBtn type="submit" disabled={saving || !barName.trim() || !file} style={{ flex: 1 }}>
+              {saving ? 'Enviando...' : 'Cadastrar bar'}
+            </PrimaryBtn>
+          </div>
+        </form>
+      </Sheet>
+
+      {/* ── sheet: editar ── */}
+      <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Editar Bar">
+        <form onSubmit={handleEdit}>
+          <ErrorMsg msg={error} />
+          <TextInput label="Nome do bar" value={editName} onChange={setEditName} required />
+          <Field label="Nova foto (opcional)">
+            <input ref={editFileRef} type="file" accept="image/*"
+              onChange={e => { const f = e.target.files[0]; setEditFile(f||null); setEditPreview(f ? URL.createObjectURL(f) : null) }}
+              style={{ color: C.soft, fontSize: '14px', width: '100%', cursor: 'pointer' }} />
+          </Field>
+          {editPreview && (
+            <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.25rem', maxHeight: '200px' }}>
+              <img src={editPreview} alt="preview" style={{ width: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+          )}
+          {!editPreview && editing && (
+            <div style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.25rem', maxHeight: '160px', border: `1px solid ${C.border}` }}>
+              <img src={editing.src} alt={editing.name} style={{ width: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '0.65rem' }}>
+            <GhostBtn onClick={() => setEditOpen(false)}>Cancelar</GhostBtn>
+            <PrimaryBtn type="submit" disabled={saving || !editName.trim()} style={{ flex: 1 }}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </PrimaryBtn>
+          </div>
+        </form>
+      </Sheet>
+    </div>
+  )
+}
+
+// ─── login ────────────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+  const [form, setForm] = useState({ username: '', password: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Credenciais inválidas')
+      onLogin()
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', padding: '1.5rem', background: C.bg }}>
+      <div style={{ width: '100%', maxWidth: '360px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎸</div>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>Admin</h1>
+          <p style={{ margin: '0.25rem 0 0', color: C.muted, fontSize: '14px' }}>Banda Retrovers</p>
+        </div>
+        <div style={{ background: C.card, borderRadius: '20px', padding: '1.75rem', border: `1px solid ${C.border}` }}>
+          <ErrorMsg msg={error} />
+          <form onSubmit={submit}>
+            <TextInput label="Usuário" value={form.username} onChange={v => setForm(p => ({ ...p, username: v }))} required />
+            <TextInput label="Senha" type="password" value={form.password} onChange={v => setForm(p => ({ ...p, password: v }))} required />
+            <PrimaryBtn type="submit" disabled={loading} style={{ width: '100%', marginTop: '0.5rem' }}>
+              {loading ? 'Entrando...' : 'Entrar'}
+            </PrimaryBtn>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── root ─────────────────────────────────────────────────────────────────────
+
+const TABS = [
+  { id: 'shows', icon: '🎸', label: 'Shows' },
+  { id: 'bares', icon: '🏠', label: 'Bares' },
+]
+
+export default function AdminPage() {
+  const [loggedIn, setLoggedIn] = useState(null) // null = verificando, false = não logado, true = logado
+  const [tab, setTab] = useState('shows')
+
+  useEffect(() => {
+    fetch('/api/auth')
+      .then(r => setLoggedIn(r.ok))
+      .catch(() => setLoggedIn(false))
+  }, [])
+
+  function login() { setLoggedIn(true) }
+
+  async function logout() {
+    await fetch('/api/auth', { method: 'DELETE' })
+    setLoggedIn(false)
+  }
+
+  if (loggedIn === null) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#0b0d10' }}>
+        <span style={{ color: '#9aa3ad', fontSize: '14px' }}>Verificando sessão...</span>
+      </div>
+    )
+  }
+
+  if (!loggedIn) return <LoginScreen onLogin={login} />
+
+  const tabTitle = TABS.find(t => t.id === tab)
+
+  return (
+    <div style={{ background: C.bg, minHeight: '100dvh', color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px' }}>
+      {/* top bar */}
+      <header style={{ position: 'sticky', top: 0, zIndex: 30, background: C.card, borderBottom: `1px solid ${C.border}`, height: `${TOP_H}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.25rem' }}>
+        <span style={{ fontWeight: 900, fontSize: '1rem', color: C.text }}>
+          {tabTitle?.icon} {tabTitle?.label}
+        </span>
+        <button onClick={logout}
+          style={{ background: C.surface, border: 'none', borderRadius: '8px', color: C.muted, padding: '0.45rem 1rem', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
+          Sair
+        </button>
+      </header>
+
+      {/* content */}
+      <main style={{ padding: '1rem', maxWidth: '430px', margin: '0 auto' }}>
+        {tab === 'shows' && <ShowsTab key="shows" />}
+        {tab === 'bares' && <BaresTab key="bares" />}
+      </main>
+
+      {/* bottom nav */}
+      <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '430px', height: `${NAV_H}px`, background: C.card, borderTop: `1px solid ${C.border}`, display: 'flex', zIndex: 30 }}>
+        {TABS.map(({ id, icon, label }) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', color: tab === id ? C.accentText : C.muted, borderTop: `2px solid ${tab === id ? C.accent : 'transparent'}`, paddingTop: '2px' }}>
+            <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: '11px', fontWeight: 700 }}>{label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  )
+}

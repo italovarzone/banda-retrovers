@@ -2,8 +2,9 @@
 const nextConfig = {
   images: {
     localPatterns: [
-      { pathname: '/api/images/by-name', search: 'name=*' },
-      { pathname: '/api/images/*' }
+      { pathname: '/api/images/by-name', search: '**' },
+      { pathname: '/api/images/**' },
+      { pathname: '/images/**' },
     ],
     remotePatterns: [
       { protocol: 'https', hostname: '**' }

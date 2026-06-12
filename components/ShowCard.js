@@ -55,17 +55,25 @@ export default function ShowCard({ show }){
   }
 
   function resolveImageSrc(src){
-    if (!src || typeof src !== 'string') return src
-    // Convert '/images/filename' to Drive proxy by-name
+    if (!src || typeof src !== 'string') return null
+    // /images/foo.png  ou  images/foo.png → by-name
     const m = src.match(/^\/?images\/(.+)$/)
     if (m) return `/api/images/by-name?name=${encodeURIComponent(m[1])}`
-    return src
+    // já é URL absoluta ou caminho /api/...
+    if (src.startsWith('http') || src.startsWith('/')) return src
+    // filename simples sem barra (ex: "Teste.png") → by-name
+    return `/api/images/by-name?name=${encodeURIComponent(src)}`
   }
+
+  const imageSrc = resolveImageSrc(show.image)
 
   return (
     <article className="show-card">
       <div className="media">
-        <Image src={resolveImageSrc(show.image)} alt={`Show em ${show.venue}`} fill className="img" sizes="(max-width: 900px) 100vw, 50vw" />
+        {imageSrc
+          ? <Image src={imageSrc} alt={`Show em ${show.venue}`} fill className="img" sizes="(max-width: 900px) 100vw, 50vw" />
+          : <div className="img img-placeholder" />
+        }
       </div>
       <div className="content">
         <h3 className="show-title">{show.venue} — {show.city}</h3>

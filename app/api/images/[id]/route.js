@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(_request, { params }) {
   try {
-    const id = params?.id
+    const { id } = await params
     if (!id) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
