@@ -982,11 +982,52 @@ function LoginScreen({ onLogin }) {
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
-function MetricCard({ label, value, icon, color }) {
+const DASH_CSS = `
+  @keyframes dashFadeUp {
+    from { opacity:0; transform:translateY(10px); }
+    to   { opacity:1; transform:translateY(0);    }
+  }
+  @keyframes dashNumPop {
+    0%   { opacity:0; transform:scale(0.8);  }
+    65%  {            transform:scale(1.06); }
+    100% { opacity:1; transform:scale(1);    }
+  }
+  @keyframes dashBarGrow {
+    from { transform:scaleX(0); transform-origin:left; }
+    to   { transform:scaleX(1); transform-origin:left; }
+  }
+`
+
+function useAnimatedValue(target, duration = 480) {
+  const [val, setVal] = useState(target)
+  const fromRef = useRef(target)
+  const rafRef  = useRef(null)
+  useEffect(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    const from = fromRef.current
+    const t0   = performance.now()
+    function tick(now) {
+      const t = Math.min((now - t0) / duration, 1)
+      const e = 1 - Math.pow(1 - t, 3)
+      setVal(Math.round(from + (target - from) * e))
+      if (t < 1) { rafRef.current = requestAnimationFrame(tick) }
+      else { fromRef.current = target; rafRef.current = null }
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    const raf = rafRef.current
+    return () => { if (raf) cancelAnimationFrame(raf) }
+  }, [target, duration])
+  return val
+}
+
+function MetricCard({ label, numericValue, format, icon, color, delay = 0 }) {
+  const animated = useAnimatedValue(numericValue)
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '1rem', flex: 1, minWidth: 0 }}>
-      <div style={{ color: color || C.muted, fontSize: '1.25rem', marginBottom: '0.4rem' }}><i className={icon} /></div>
-      <div style={{ color: C.text, fontSize: '1.15rem', fontWeight: 900, lineHeight: 1 }}>{value}</div>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '1rem', flex: 1, minWidth: 0, animation: `dashFadeUp 0.35s ease ${delay}s both` }}>
+      <div style={{ color: color || C.muted, fontSize: '1.2rem', marginBottom: '0.4rem' }}><i className={icon} /></div>
+      <div key={numericValue} style={{ color: C.text, fontSize: '1.15rem', fontWeight: 900, lineHeight: 1, animation: 'dashNumPop 0.3s ease both' }}>
+        {format ? format(animated) : animated}
+      </div>
       <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, marginTop: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
     </div>
   )
@@ -996,15 +1037,16 @@ function MiniBar({ value, max, color }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
   return (
     <div style={{ flex: 1, height: '6px', background: C.surface, borderRadius: '3px', overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color || C.accent, borderRadius: '3px', transition: 'width 0.4s' }} />
+      <div style={{ width: `${pct}%`, height: '100%', background: color || C.accent, borderRadius: '3px', transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
     </div>
   )
 }
 
 function DashboardTab() {
-  const [shows, setShows] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [year, setYear] = useState(new Date().getFullYear())
+  const [shows, setShows]       = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [year, setYear]         = useState(new Date().getFullYear())
+  const [range, setRange]       = useState(null) // null | [start, end]  (índices 0-11)
 
   useEffect(() => {
     setLoading(true)
@@ -1015,98 +1057,173 @@ function DashboardTab() {
       .finally(() => setLoading(false))
   }, [])
 
+  // ── lógica de seleção de range ──────────────────────────────────────────────
+  function handleMonthClick(i) {
+    if (!range) {
+      setRange([i, i])
+    } else {
+      const [a, b] = range
+      if (a === b && a === i) {
+        setRange(null) // deseleciona mês único
+      } else if (a === b) {
+        setRange([Math.min(a, i), Math.max(a, i)]) // forma o range
+      } else {
+        setRange(null) // terceiro clique sempre limpa
+      }
+    }
+  }
+
+  function monthState(i) {
+    if (!range) return 'none'
+    const [a, b] = range
+    if (i === a || i === b) return 'edge'
+    if (i > a && i < b) return 'middle'
+    return 'none'
+  }
+
+  // ── derivações ──────────────────────────────────────────────────────────────
   const now = new Date()
-
-  const realizados = shows.filter(s => !s.cancelado && new Date(s.date) < now)
-  const cancelados = shows.filter(s => s.cancelado)
-  const proximos   = shows.filter(s => !s.cancelado && new Date(s.date) >= now)
-
-  const anoAtual = realizados.filter(s => new Date(s.date).getFullYear() === year)
-  const mesAtual = realizados.filter(s => {
-    const d = new Date(s.date)
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-  })
-
-  const faturamentoAno = anoAtual.reduce((acc, s) => acc + (s.valor || 0), 0)
-  const faturamentoMes = mesAtual.reduce((acc, s) => acc + (s.valor || 0), 0)
-
   const fmt = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 
-  // por mês do ano selecionado
+  function inPeriod(s) {
+    const d = new Date(s.date)
+    if (d.getFullYear() !== year) return false
+    if (range) {
+      const m = d.getMonth()
+      if (m < range[0] || m > range[1]) return false
+    }
+    return true
+  }
+
+  const realizados = shows.filter(s => !s.cancelado && new Date(s.date) < now  && inPeriod(s))
+  const cancelados = shows.filter(s =>  s.cancelado                            && inPeriod(s))
+  const proximos   = shows.filter(s => !s.cancelado && new Date(s.date) >= now && inPeriod(s))
+
+  const faturamento = realizados.reduce((a, s) => a + (s.valor || 0), 0)
+  const total       = realizados.length + cancelados.length
+  const taxaCanc    = total > 0 ? Math.round((cancelados.length / total) * 100) : 0
+
   const showsPorMes = MESES.map((_, i) => {
     const mes = shows.filter(s => {
       const d = new Date(s.date)
       return d.getFullYear() === year && d.getMonth() === i && !s.cancelado
     })
-    return { label: MESES[i], count: mes.length, valor: mes.reduce((a, s) => a + (s.valor || 0), 0) }
+    return { idx: i, label: MESES[i], count: mes.length, valor: mes.reduce((a, s) => a + (s.valor || 0), 0) }
   })
   const maxShows = Math.max(...showsPorMes.map(m => m.count), 1)
 
-  // por cidade
   const cidadeMap = {}
-  realizados.forEach(s => {
-    if (s.city) cidadeMap[s.city] = (cidadeMap[s.city] || 0) + 1
-  })
-  const cidades = Object.entries(cidadeMap).sort((a, b) => b[1] - a[1]).slice(0, 6)
+  realizados.forEach(s => { if (s.city) cidadeMap[s.city] = (cidadeMap[s.city] || 0) + 1 })
+  const cidades   = Object.entries(cidadeMap).sort((a, b) => b[1] - a[1]).slice(0, 6)
   const maxCidade = Math.max(...cidades.map(([, n]) => n), 1)
 
-  // tipo
   const eletricos = realizados.filter(s => s.tipo === 'eletrico').length
   const acusticos = realizados.filter(s => s.tipo === 'acustico').length
 
-  const total = realizados.length + cancelados.length
-  const taxaCancelamento = total > 0 ? Math.round((cancelados.length / total) * 100) : 0
+  const periodoLabel = !range
+    ? String(year)
+    : range[0] === range[1]
+      ? `${MESES[range[0]]}/${year}`
+      : `${MESES[range[0]]}–${MESES[range[1]]}/${year}`
+
+  // instrução exibida abaixo dos meses
+  const rangeHint = !range
+    ? 'Clique para selecionar mês ou intervalo'
+    : range[0] === range[1]
+      ? 'Clique em outro mês para formar intervalo'
+      : 'Clique novamente para limpar'
 
   return (
     <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
+      <style>{DASH_CSS}</style>
       {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
 
       {!loading && (
         <>
-          {/* cards de resumo */}
-          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.75rem' }}>
-            <MetricCard label="Fat. este mês" value={fmt(faturamentoMes)} icon="fa-solid fa-wallet" color={C.accentText} />
-            <MetricCard label="Próximos" value={proximos.length} icon="fa-solid fa-calendar-days" color={C.accentText} />
-          </div>
-          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.25rem' }}>
-            <MetricCard label="Realizados" value={realizados.length} icon="fa-solid fa-circle-check" color={C.success} />
-            <MetricCard label="Cancelados" value={cancelados.length} icon="fa-solid fa-ban" color={C.danger} />
-          </div>
+          {/* ── seletor de período ──────────────────────────────── */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.8rem 0.9rem', marginBottom: '1rem', animation: 'dashFadeUp 0.3s ease both' }}>
+            {/* linha do ano */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.7rem' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <i className="fa-solid fa-filter" style={{ marginRight: '5px' }} />Período
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <button onClick={() => { setYear(y => y - 1); setRange(null) }}
+                  style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 11px', color: C.muted, cursor: 'pointer', fontSize: '14px' }}>‹</button>
+                <span style={{ color: C.text, fontWeight: 800, fontSize: '15px', minWidth: '44px', textAlign: 'center' }}>{year}</span>
+                <button onClick={() => { setYear(y => y + 1); setRange(null) }}
+                  style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 11px', color: C.muted, cursor: 'pointer', fontSize: '14px' }}>›</button>
+              </div>
+            </div>
 
-          {/* seletor de ano */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontWeight: 800, fontSize: '13px', color: C.soft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Shows & Faturamento</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button onClick={() => setYear(y => y - 1)} style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 9px', color: C.muted, cursor: 'pointer', fontSize: '13px' }}>‹</button>
-              <span style={{ color: C.text, fontWeight: 700, fontSize: '13px', minWidth: '36px', textAlign: 'center' }}>{year}</span>
-              <button onClick={() => setYear(y => y + 1)} style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 9px', color: C.muted, cursor: 'pointer', fontSize: '13px' }}>›</button>
+            {/* grade de meses 4×3 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px', marginBottom: '0.5rem' }}>
+              <button onClick={() => setRange(null)}
+                style={{ gridColumn: 'span 4', background: !range ? C.accent : C.surface, border: 'none', borderRadius: '7px', padding: '5px 0', color: !range ? '#0b0d10' : C.muted, fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s, color 0.2s' }}>
+                Todos os meses
+              </button>
+              {MESES.map((m, i) => {
+                const st = monthState(i)
+                const isEdge   = st === 'edge'
+                const isMid    = st === 'middle'
+                const bg       = isEdge ? C.accent : isMid ? C.accentDim : C.surface
+                const clr      = isEdge ? '#0b0d10' : isMid ? C.accentText : C.muted
+                const brd      = isMid ? `1px solid rgba(184,150,7,0.3)` : '1px solid transparent'
+                return (
+                  <button key={i} onClick={() => handleMonthClick(i)}
+                    style={{ background: bg, border: brd, borderRadius: '7px', padding: '5px 0', color: clr, fontSize: '11px', fontWeight: isEdge ? 800 : 600, cursor: 'pointer', transition: 'background 0.2s, color 0.2s, border 0.2s' }}>
+                    {m}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* label do período selecionado */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: C.muted, fontStyle: 'italic' }}>{rangeHint}</span>
+              {range && (
+                <span style={{ fontSize: '11px', fontWeight: 800, color: C.accentText }}>
+                  <i className="fa-solid fa-calendar-week" style={{ marginRight: '4px' }} />{periodoLabel}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* faturamento anual do ano selecionado */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: C.muted, fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>Faturamento {year}</span>
-            <span style={{ color: C.accentText, fontSize: '1.2rem', fontWeight: 900 }}>{fmt(faturamentoAno)}</span>
+          {/* ── cards de resumo ─────────────────────────────────── */}
+          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
+            <MetricCard label={`Faturamento`} numericValue={faturamento} format={fmt} icon="fa-solid fa-wallet" color={C.accentText} delay={0.05} />
+            <MetricCard label="Próximos" numericValue={proximos.length} icon="fa-solid fa-calendar-days" color={C.accentText} delay={0.1} />
+          </div>
+          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem' }}>
+            <MetricCard label="Realizados" numericValue={realizados.length} icon="fa-solid fa-circle-check" color={C.success} delay={0.15} />
+            <MetricCard label="Cancelados" numericValue={cancelados.length} icon="fa-solid fa-ban" color={C.danger} delay={0.2} />
           </div>
 
-          {/* shows por mês */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
-            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Shows por mês</div>
-            {showsPorMes.map(({ label, count, valor }) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
-                <span style={{ color: C.muted, fontSize: '11px', width: '28px', flexShrink: 0 }}>{label}</span>
-                <MiniBar value={count} max={maxShows} color={C.accent} />
-                <span style={{ color: count > 0 ? C.text : C.muted, fontSize: '12px', fontWeight: 700, width: '16px', textAlign: 'right', flexShrink: 0 }}>{count}</span>
-                {valor > 0 && <span style={{ color: C.accentText, fontSize: '11px', flexShrink: 0 }}>{fmt(valor)}</span>}
-              </div>
-            ))}
+          {/* ── shows por mês ───────────────────────────────────── */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem', animation: 'dashFadeUp 0.35s ease 0.25s both' }}>
+            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+              Shows por mês — {year}
+            </div>
+            {showsPorMes.map(({ idx, label, count, valor }) => {
+              const st = monthState(idx)
+              const active = st !== 'none'
+              return (
+                <button key={idx} onClick={() => handleMonthClick(idx)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.45rem', width: '100%', background: active ? (st === 'edge' ? 'rgba(184,150,7,0.18)' : 'rgba(184,150,7,0.08)') : 'transparent', border: `1px solid ${active ? (st === 'edge' ? C.accent : 'rgba(184,150,7,0.25)') : 'transparent'}`, borderRadius: '7px', padding: '4px 6px', cursor: 'pointer', transition: 'background 0.2s, border 0.2s' }}>
+                  <span style={{ color: active ? C.accentText : C.muted, fontSize: '11px', fontWeight: active ? 800 : 400, width: '28px', flexShrink: 0, textAlign: 'left', transition: 'color 0.2s' }}>{label}</span>
+                  <MiniBar value={count} max={maxShows} color={active ? C.accent : C.surface} />
+                  <span style={{ color: count > 0 ? C.text : C.muted, fontSize: '12px', fontWeight: 700, width: '16px', textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                  {valor > 0 && <span style={{ color: active ? C.accentText : C.muted, fontSize: '11px', width: '62px', textAlign: 'right', flexShrink: 0, transition: 'color 0.2s' }}>{fmt(valor)}</span>}
+                </button>
+              )
+            })}
           </div>
 
-          {/* cidades */}
+          {/* ── cidades ─────────────────────────────────────────── */}
           {cidades.length > 0 && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem', animation: 'dashFadeUp 0.35s ease 0.3s both' }}>
               <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
-                <i className="fa-solid fa-location-dot" style={{ marginRight: '5px' }} />Shows por cidade
+                <i className="fa-solid fa-location-dot" style={{ marginRight: '5px' }} />Por cidade — {periodoLabel}
               </div>
               {cidades.map(([cidade, count]) => (
                 <div key={cidade} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
@@ -1118,28 +1235,32 @@ function DashboardTab() {
             </div>
           )}
 
-          {/* realizados vs cancelados */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
-            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Realizados vs Cancelados</div>
+          {/* ── realizados vs cancelados ────────────────────────── */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem', animation: 'dashFadeUp 0.35s ease 0.35s both' }}>
+            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+              Realizados vs Cancelados — {periodoLabel}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
               <span style={{ color: C.success, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-circle-check" /> Realizados</span>
               <MiniBar value={realizados.length} max={Math.max(realizados.length, cancelados.length, 1)} color={C.success} />
               <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{realizados.length}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.65rem' }}>
               <span style={{ color: C.danger, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-ban" /> Cancelados</span>
               <MiniBar value={cancelados.length} max={Math.max(realizados.length, cancelados.length, 1)} color={C.danger} />
               <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{cancelados.length}</span>
             </div>
             <div style={{ color: C.muted, fontSize: '11px', textAlign: 'right' }}>
-              Taxa de cancelamento: <strong style={{ color: taxaCancelamento > 20 ? C.danger : C.muted }}>{taxaCancelamento}%</strong>
+              Taxa de cancelamento: <strong style={{ color: taxaCanc > 20 ? C.danger : C.muted }}>{taxaCanc}%</strong>
             </div>
           </div>
 
-          {/* tipo de show */}
+          {/* ── tipo de show ────────────────────────────────────── */}
           {(eletricos > 0 || acusticos > 0) && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem' }}>
-              <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Tipo de show (realizados)</div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', animation: 'dashFadeUp 0.35s ease 0.4s both' }}>
+              <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+                Tipo — {periodoLabel}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
                 <span style={{ color: C.accentText, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-bolt" /> Elétrico</span>
                 <MiniBar value={eletricos} max={Math.max(eletricos, acusticos, 1)} color={C.accent} />
