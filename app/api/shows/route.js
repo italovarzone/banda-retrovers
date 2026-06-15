@@ -20,6 +20,7 @@ function toShowDTO(doc) {
     valor: data.valor || 0,
     tipo: data.tipo || '',
     cancelado: data.cancelado || false,
+    particular: data.particular || false,
   }
 }
 
@@ -114,6 +115,7 @@ export async function POST(request) {
       valor: parseFloat(body.valor) || 0,
       tipo: body.tipo || null,
       cancelado: body.cancelado || false,
+      particular: body.particular || false,
       createdAt: Timestamp.now(),
     }
 

@@ -67,7 +67,7 @@ function fmtDate(iso) {
   }
 }
 
-const EMPTY_SHOW = { id: '', venue: '', city: '', date: '', description: '', link: '', postUrl: '', image: '', valor: '', tipo: '' }
+const EMPTY_SHOW = { id: '', venue: '', city: '', date: '', description: '', link: '', postUrl: '', image: '', valor: '', tipo: '', particular: false }
 
 // ─── atoms ────────────────────────────────────────────────────────────────────
 
@@ -371,7 +371,7 @@ function ShowForm({ open, onClose, editing, onSaved }) {
     if (!open) return
     setError('')
     setForm(editing
-      ? { id: editing.id, venue: editing.venue || '', city: editing.city || '', date: isoToLocal(editing.date), description: editing.description || '', link: editing.link || '', postUrl: editing.postUrl || '', image: editing.image || '', valor: editing.valor ? String(editing.valor) : '', tipo: editing.tipo || '' }
+      ? { id: editing.id, venue: editing.venue || '', city: editing.city || '', date: isoToLocal(editing.date), description: editing.description || '', link: editing.link || '', postUrl: editing.postUrl || '', image: editing.image || '', valor: editing.valor ? String(editing.valor) : '', tipo: editing.tipo || '', particular: !!editing.particular }
       : EMPTY_SHOW)
   }, [open, editing])
 
@@ -402,15 +402,31 @@ function ShowForm({ open, onClose, editing, onSaved }) {
       <Sheet open={open && !pickerOpen} onClose={onClose} title={editing ? 'Editar Show' : 'Novo Show'}>
         <form onSubmit={submit}>
           <ErrorMsg msg={error} />
-          <Field label="Local / Venue" required>
-            <PlacesInput
-              key={editing?.id ?? 'new'}
-              value={form.venue}
-              onChangeName={set('venue')}
-              onSelect={({ name, city, lat, lng, link }) =>
-                setForm(p => ({ ...p, venue: name, city, link, location: { lat, lng, address: name } }))
-              }
-            />
+          <Field label={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Local / Venue <span style={{ color: C.danger }}>*</span></span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: form.particular ? C.accentText : C.muted }}>
+                  <i className="fa-solid fa-lock" style={{ marginRight: '3px' }} />Evento Particular
+                </span>
+                <span onClick={() => setForm(p => ({ ...p, particular: !p.particular }))}
+                  style={{ position: 'relative', display: 'inline-block', width: '34px', height: '18px', borderRadius: '9px', background: form.particular ? C.accent : C.surface, border: `1px solid ${form.particular ? C.accent : C.border}`, transition: 'background 0.2s, border 0.2s', flexShrink: 0, cursor: 'pointer' }}>
+                  <span style={{ position: 'absolute', top: '2px', left: form.particular ? '16px' : '2px', width: '12px', height: '12px', borderRadius: '50%', background: form.particular ? '#0b0d10' : C.muted, transition: 'left 0.2s, background 0.2s' }} />
+                </span>
+              </label>
+            </div>
+          }>
+            {form.particular
+              ? <input value={form.venue} onChange={e => set('venue')(e.target.value)} placeholder="Nome do local ou evento" required style={inputStyle} />
+              : <PlacesInput
+                  key={editing?.id ?? 'new'}
+                  value={form.venue}
+                  onChangeName={set('venue')}
+                  onSelect={({ name, city, lat, lng, link }) =>
+                    setForm(p => ({ ...p, venue: name, city, link, location: { lat, lng, address: name } }))
+                  }
+                />
+            }
           </Field>
           <TextInput label="Cidade" value={form.city} onChange={set('city')} required />
           <TextInput label="Data e hora" type="datetime-local" value={form.date} onChange={set('date')} required />
@@ -676,9 +692,14 @@ function ShowsTab() {
                     {show.city}
                   </div>
 
-                  {/* tipo + valor numa linha só */}
-                  {(show.tipo || show.valor > 0) && (
+                  {/* tipo + valor + particular numa linha só */}
+                  {(show.tipo || show.valor > 0 || show.particular) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '2px', flexWrap: 'wrap' }}>
+                      {show.particular && (
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: '5px', padding: '1px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <i className="fa-solid fa-lock" style={{ fontSize: '10px' }} />Particular
+                        </span>
+                      )}
                       {show.tipo && (
                         <span style={{ fontSize: '11px', fontWeight: 700, color: C.accentText, background: C.accentDim, border: `1px solid rgba(184,150,7,0.25)`, borderRadius: '5px', padding: '1px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                           <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} style={{ fontSize: '10px' }} />

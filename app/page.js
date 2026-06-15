@@ -63,7 +63,7 @@ export default async function Page() {
       const apiShows = await showsRes.json()
       shows = (apiShows || [])
         .map(s => ({...s, _date: parseShowDate(s.date)}))
-        .filter(s => s._date instanceof Date && !isNaN(s._date) && s._date.getTime() >= now)
+        .filter(s => s._date instanceof Date && !isNaN(s._date) && s._date.getTime() >= now && !s.particular)
         .sort((a, b) => a._date - b._date)
         .map(({ _date, ...s }) => ({...s, whenFormatted: formatDate(_date)}))
     }
