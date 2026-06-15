@@ -1067,7 +1067,8 @@ function DashboardTab() {
   const [shows, setShows]       = useState([])
   const [loading, setLoading]   = useState(false)
   const [year, setYear]         = useState(new Date().getFullYear())
-  const [range, setRange]       = useState(null) // null | [start, end]  (índices 0-11)
+  const _curMonth = new Date().getMonth()
+  const [range, setRange]       = useState([_curMonth, _curMonth])
 
   useEffect(() => {
     setLoading(true)
