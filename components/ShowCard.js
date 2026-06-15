@@ -67,18 +67,29 @@ export default function ShowCard({ show }){
 
   const imageSrc = resolveImageSrc(show.image)
 
+  const cancelado = !!show.cancelado
+
   return (
-    <article className="show-card">
-      <div className="media">
+    <article className="show-card" style={cancelado ? { opacity: 0.6, position: 'relative' } : undefined}>
+      <div className="media" style={cancelado ? { filter: 'grayscale(0.6)' } : undefined}>
         {imageSrc
           ? <Image src={imageSrc} alt={`Show em ${show.venue}`} fill className="img" sizes="(max-width: 900px) 100vw, 50vw" />
           : <div className="img img-placeholder" />
         }
+        {cancelado && (
+          <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(248,113,113,0.92)', color: '#fff', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '3px 10px', borderRadius: '6px', backdropFilter: 'blur(4px)' }}>
+            Show cancelado
+          </div>
+        )}
       </div>
       <div className="content">
-        <h3 className="show-title">{show.venue} — {show.city}</h3>
+        <h3 className="show-title" style={cancelado ? { textDecoration: 'line-through', opacity: 0.7 } : undefined}>{show.venue} — {show.city}</h3>
         <p className="show-when">{show.whenFormatted}</p>
-        <p className="show-desc">{show.description}</p>
+        {cancelado
+          ? <p className="show-desc" style={{ color: '#f87171', fontWeight: 600 }}>Este show foi cancelado.</p>
+          : <p className="show-desc">{show.description}</p>
+        }
+        {!cancelado && (
         <div className="show-actions">
           <button className="btn btn-outline-accent" onClick={()=>setOpen(true)}>Rotas</button>
           {(() => {
@@ -93,6 +104,7 @@ export default function ShowCard({ show }){
             )
           })()}
         </div>
+        )}
       </div>
 
       {/* Bottom Sheet for route providers */}

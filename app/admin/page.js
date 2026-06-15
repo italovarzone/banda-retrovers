@@ -67,7 +67,7 @@ function fmtDate(iso) {
   }
 }
 
-const EMPTY_SHOW = { id: '', venue: '', city: '', date: '', description: '', link: '', postUrl: '', image: '' }
+const EMPTY_SHOW = { id: '', venue: '', city: '', date: '', description: '', link: '', postUrl: '', image: '', valor: '', tipo: '' }
 
 // ─── atoms ────────────────────────────────────────────────────────────────────
 
@@ -371,7 +371,7 @@ function ShowForm({ open, onClose, editing, onSaved }) {
     if (!open) return
     setError('')
     setForm(editing
-      ? { id: editing.id, venue: editing.venue || '', city: editing.city || '', date: isoToLocal(editing.date), description: editing.description || '', link: editing.link || '', postUrl: editing.postUrl || '', image: editing.image || '' }
+      ? { id: editing.id, venue: editing.venue || '', city: editing.city || '', date: isoToLocal(editing.date), description: editing.description || '', link: editing.link || '', postUrl: editing.postUrl || '', image: editing.image || '', valor: editing.valor ? String(editing.valor) : '', tipo: editing.tipo || '' }
       : EMPTY_SHOW)
   }, [open, editing])
 
@@ -438,6 +438,25 @@ function ShowForm({ open, onClose, editing, onSaved }) {
                 Remover imagem
               </button>
             )}
+          </Field>
+
+          <Field label="Tipo de show">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {[{ id: 'eletrico', label: 'Elétrico', icon: 'fa-solid fa-bolt' }, { id: 'acustico', label: 'Acústico', icon: 'fa-solid fa-music' }].map(t => (
+                <button key={t.id} type="button" onClick={() => set('tipo')(form.tipo === t.id ? '' : t.id)}
+                  style={{ flex: 1, background: form.tipo === t.id ? C.accentDim : C.surface, border: `1px solid ${form.tipo === t.id ? C.accent : C.border}`, borderRadius: '10px', padding: '0.65rem', color: form.tipo === t.id ? C.accentText : C.muted, fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                  <i className={t.icon} /> {t.label}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Valor (R$)">
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: '14px', pointerEvents: 'none' }}>R$</span>
+              <input type="number" value={form.valor} onChange={e => set('valor')(e.target.value)} min="0" step="any" placeholder="0"
+                style={{ ...inputStyle, paddingLeft: '2.5rem' }} />
+            </div>
           </Field>
 
           <Textarea label="Descrição" value={form.description} onChange={set('description')} onGenerate={generateDescription} generating={generating} />
@@ -515,7 +534,7 @@ function ShowsTab() {
   useEffect(() => { load() }, [load])
 
   async function handleDelete(id) {
-    if (!confirm('Deletar este show?')) return
+    if (!confirm('Deletar este show? Esta ação não pode ser desfeita.')) return
     try {
       const res = await fetch(`/api/shows?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Erro ao deletar')
@@ -523,22 +542,46 @@ function ShowsTab() {
     } catch (e) { setError(e.message) }
   }
 
+  async function handleCancel(show) {
+    const undo = show.cancelado
+    if (!confirm(undo ? 'Reativar este show?' : 'Cancelar este show?')) return
+    try {
+      const res = await fetch('/api/shows', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: show.id, cancelado: !undo }),
+      })
+      if (!res.ok) throw new Error('Erro ao atualizar')
+      const updated = await res.json()
+      setShows(p => p.map(s => s.id === show.id ? updated : s))
+    } catch (e) { setError(e.message) }
+  }
+
   const now = new Date()
 
   const upcoming = shows
-    .filter(s => new Date(s.date) >= now)
+    .filter(s => !s.cancelado && new Date(s.date) >= now)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
 
   const past = shows
-    .filter(s => new Date(s.date) < now)
+    .filter(s => !s.cancelado && new Date(s.date) < now)
     .sort((a, b) => new Date(b.date) - new Date(a.date))
 
-  const filtered = filter === 'upcoming' ? upcoming : filter === 'past' ? past : [...upcoming, ...past]
+  const cancelados = shows
+    .filter(s => s.cancelado)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const filtered =
+    filter === 'upcoming'  ? upcoming  :
+    filter === 'past'      ? past      :
+    filter === 'cancelados'? cancelados:
+    [...upcoming, ...past]
 
   const FILTERS = [
-    { id: 'all',      label: 'Todos' },
-    { id: 'upcoming', label: `Próximos (${upcoming.length})` },
-    { id: 'past',     label: `Passados (${past.length})` },
+    { id: 'all',       label: 'Todos' },
+    { id: 'upcoming',  label: `Próximos (${upcoming.length})` },
+    { id: 'past',      label: `Passados (${past.length})` },
+    { id: 'cancelados',label: `Cancelados (${cancelados.length})` },
   ]
 
   return (
@@ -583,19 +626,40 @@ function ShowsTab() {
             ? { label: pastTimeLabel(d, now), color: C.muted }
             : relativeTimeLabel(d, now)
 
+          const borderColor = show.cancelado ? C.dangerBorder : isNext ? C.accent : C.border
+
           return (
             <div key={show.id}
-              style={{ background: C.card, border: `1px solid ${isNext ? C.accent : C.border}`, borderRadius: '16px', overflow: 'hidden', opacity: past ? 0.6 : 1 }}>
+              style={{ background: C.card, border: `1px solid ${borderColor}`, borderRadius: '16px', overflow: 'hidden', opacity: (past || show.cancelado) ? 0.65 : 1 }}>
 
-              {/* badge de tempo relativo */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.85rem 0' }}>
-                {isNext
-                  ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <i className="fa-solid fa-star" /> Próximo show
+              {/* linha de status */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.85rem 0', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                  {show.cancelado
+                    ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.danger, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <i className="fa-solid fa-ban" /> Cancelado
+                      </span>
+                    : isNext
+                      ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="fa-solid fa-star" /> Próximo show
+                        </span>
+                      : <span style={{ fontSize: '11px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
+                  }
+                  {show.tipo && (
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: C.muted, background: C.surface, borderRadius: '4px', padding: '1px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} />
+                      {show.tipo === 'eletrico' ? 'Elétrico' : 'Acústico'}
                     </span>
-                  : <span style={{ fontSize: '11px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
-                }
-                <span style={{ fontSize: '11px', color: C.muted }}>{day} · {time}</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                  {show.valor > 0 && (
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: C.accentText }}>
+                      {show.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', color: C.muted }}>{day} · {time}</span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.85rem', padding: '0.6rem 1rem 1rem' }}>
@@ -604,17 +668,17 @@ function ShowsTab() {
                     <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ) : (
-                  <div style={{ background: past ? C.surface : C.accentDim, borderRadius: '10px', padding: '0.5rem 0.6rem', textAlign: 'center', minWidth: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ color: past ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
+                  <div style={{ background: (past || show.cancelado) ? C.surface : C.accentDim, borderRadius: '10px', padding: '0.5rem 0.6rem', textAlign: 'center', minWidth: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ color: (past || show.cancelado) ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
                       {d.toLocaleDateString('pt-BR', { month: 'short' })}
                     </div>
-                    <div style={{ color: past ? C.soft : C.accent, fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>
+                    <div style={{ color: (past || show.cancelado) ? C.soft : C.accent, fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>
                       {String(d.getDate()).padStart(2, '0')}
                     </div>
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, color: C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontWeight: 800, color: show.cancelado ? C.muted : C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: show.cancelado ? 'line-through' : 'none' }}>
                     {show.venue}
                   </div>
                   <div style={{ color: C.muted, fontSize: '13px', marginTop: '1px' }}>{show.city}</div>
@@ -628,11 +692,15 @@ function ShowsTab() {
 
               <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
                 <button onClick={() => { setEditing(show); setFormOpen(true) }}
-                  style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
+                  style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
                   <i className="fa-solid fa-pen" /> Editar
                 </button>
+                <button onClick={() => handleCancel(show)}
+                  style={{ flex: 1, background: 'none', border: 'none', color: show.cancelado ? C.success : C.muted, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
+                  <i className={show.cancelado ? 'fa-solid fa-rotate-left' : 'fa-solid fa-ban'} /> {show.cancelado ? 'Reativar' : 'Cancelar'}
+                </button>
                 <button onClick={() => handleDelete(show.id)}
-                  style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
+                  style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
                   <i className="fa-solid fa-trash" /> Deletar
                 </button>
               </div>
@@ -899,11 +967,192 @@ function LoginScreen({ onLogin }) {
   )
 }
 
+// ─── dashboard tab ────────────────────────────────────────────────────────────
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+function MetricCard({ label, value, icon, color }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '1rem', flex: 1, minWidth: 0 }}>
+      <div style={{ color: color || C.muted, fontSize: '1.25rem', marginBottom: '0.4rem' }}><i className={icon} /></div>
+      <div style={{ color: C.text, fontSize: '1.15rem', fontWeight: 900, lineHeight: 1 }}>{value}</div>
+      <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, marginTop: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+    </div>
+  )
+}
+
+function MiniBar({ value, max, color }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0
+  return (
+    <div style={{ flex: 1, height: '6px', background: C.surface, borderRadius: '3px', overflow: 'hidden' }}>
+      <div style={{ width: `${pct}%`, height: '100%', background: color || C.accent, borderRadius: '3px', transition: 'width 0.4s' }} />
+    </div>
+  )
+}
+
+function DashboardTab() {
+  const [shows, setShows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [year, setYear] = useState(new Date().getFullYear())
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/shows')
+      .then(r => r.json())
+      .then(d => setShows(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const now = new Date()
+
+  const realizados = shows.filter(s => !s.cancelado && new Date(s.date) < now)
+  const cancelados = shows.filter(s => s.cancelado)
+  const proximos   = shows.filter(s => !s.cancelado && new Date(s.date) >= now)
+
+  const anoAtual = realizados.filter(s => new Date(s.date).getFullYear() === year)
+  const mesAtual = realizados.filter(s => {
+    const d = new Date(s.date)
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  })
+
+  const faturamentoAno = anoAtual.reduce((acc, s) => acc + (s.valor || 0), 0)
+  const faturamentoMes = mesAtual.reduce((acc, s) => acc + (s.valor || 0), 0)
+
+  const fmt = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+
+  // por mês do ano selecionado
+  const showsPorMes = MESES.map((_, i) => {
+    const mes = shows.filter(s => {
+      const d = new Date(s.date)
+      return d.getFullYear() === year && d.getMonth() === i && !s.cancelado
+    })
+    return { label: MESES[i], count: mes.length, valor: mes.reduce((a, s) => a + (s.valor || 0), 0) }
+  })
+  const maxShows = Math.max(...showsPorMes.map(m => m.count), 1)
+
+  // por cidade
+  const cidadeMap = {}
+  realizados.forEach(s => {
+    if (s.city) cidadeMap[s.city] = (cidadeMap[s.city] || 0) + 1
+  })
+  const cidades = Object.entries(cidadeMap).sort((a, b) => b[1] - a[1]).slice(0, 6)
+  const maxCidade = Math.max(...cidades.map(([, n]) => n), 1)
+
+  // tipo
+  const eletricos = realizados.filter(s => s.tipo === 'eletrico').length
+  const acusticos = realizados.filter(s => s.tipo === 'acustico').length
+
+  const total = realizados.length + cancelados.length
+  const taxaCancelamento = total > 0 ? Math.round((cancelados.length / total) * 100) : 0
+
+  return (
+    <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
+      {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
+
+      {!loading && (
+        <>
+          {/* cards de resumo */}
+          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.75rem' }}>
+            <MetricCard label="Fat. este mês" value={fmt(faturamentoMes)} icon="fa-solid fa-wallet" color={C.accentText} />
+            <MetricCard label="Próximos" value={proximos.length} icon="fa-solid fa-calendar-days" color={C.accentText} />
+          </div>
+          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1.25rem' }}>
+            <MetricCard label="Realizados" value={realizados.length} icon="fa-solid fa-circle-check" color={C.success} />
+            <MetricCard label="Cancelados" value={cancelados.length} icon="fa-solid fa-ban" color={C.danger} />
+          </div>
+
+          {/* seletor de ano */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+            <span style={{ fontWeight: 800, fontSize: '13px', color: C.soft, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Shows & Faturamento</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button onClick={() => setYear(y => y - 1)} style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 9px', color: C.muted, cursor: 'pointer', fontSize: '13px' }}>‹</button>
+              <span style={{ color: C.text, fontWeight: 700, fontSize: '13px', minWidth: '36px', textAlign: 'center' }}>{year}</span>
+              <button onClick={() => setYear(y => y + 1)} style={{ background: C.surface, border: 'none', borderRadius: '6px', padding: '3px 9px', color: C.muted, cursor: 'pointer', fontSize: '13px' }}>›</button>
+            </div>
+          </div>
+
+          {/* faturamento anual do ano selecionado */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: C.muted, fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>Faturamento {year}</span>
+            <span style={{ color: C.accentText, fontSize: '1.2rem', fontWeight: 900 }}>{fmt(faturamentoAno)}</span>
+          </div>
+
+          {/* shows por mês */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
+            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Shows por mês</div>
+            {showsPorMes.map(({ label, count, valor }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
+                <span style={{ color: C.muted, fontSize: '11px', width: '28px', flexShrink: 0 }}>{label}</span>
+                <MiniBar value={count} max={maxShows} color={C.accent} />
+                <span style={{ color: count > 0 ? C.text : C.muted, fontSize: '12px', fontWeight: 700, width: '16px', textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                {valor > 0 && <span style={{ color: C.accentText, fontSize: '11px', flexShrink: 0 }}>{fmt(valor)}</span>}
+              </div>
+            ))}
+          </div>
+
+          {/* cidades */}
+          {cidades.length > 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
+              <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>
+                <i className="fa-solid fa-location-dot" style={{ marginRight: '5px' }} />Shows por cidade
+              </div>
+              {cidades.map(([cidade, count]) => (
+                <div key={cidade} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
+                  <span style={{ color: C.soft, fontSize: '12px', width: '90px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cidade}</span>
+                  <MiniBar value={count} max={maxCidade} color={C.accentText} />
+                  <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '16px', textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* realizados vs cancelados */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem', marginBottom: '0.75rem' }}>
+            <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Realizados vs Cancelados</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
+              <span style={{ color: C.success, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-circle-check" /> Realizados</span>
+              <MiniBar value={realizados.length} max={Math.max(realizados.length, cancelados.length, 1)} color={C.success} />
+              <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{realizados.length}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <span style={{ color: C.danger, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-ban" /> Cancelados</span>
+              <MiniBar value={cancelados.length} max={Math.max(realizados.length, cancelados.length, 1)} color={C.danger} />
+              <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{cancelados.length}</span>
+            </div>
+            <div style={{ color: C.muted, fontSize: '11px', textAlign: 'right' }}>
+              Taxa de cancelamento: <strong style={{ color: taxaCancelamento > 20 ? C.danger : C.muted }}>{taxaCancelamento}%</strong>
+            </div>
+          </div>
+
+          {/* tipo de show */}
+          {(eletricos > 0 || acusticos > 0) && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '0.85rem 1rem' }}>
+              <div style={{ color: C.muted, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem' }}>Tipo de show (realizados)</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.55rem' }}>
+                <span style={{ color: C.accentText, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-bolt" /> Elétrico</span>
+                <MiniBar value={eletricos} max={Math.max(eletricos, acusticos, 1)} color={C.accent} />
+                <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{eletricos}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ color: C.soft, fontSize: '11px', width: '80px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><i className="fa-solid fa-music" /> Acústico</span>
+                <MiniBar value={acusticos} max={Math.max(eletricos, acusticos, 1)} color={C.soft} />
+                <span style={{ color: C.text, fontSize: '12px', fontWeight: 700, width: '24px', textAlign: 'right', flexShrink: 0 }}>{acusticos}</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── root ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'shows', icon: 'fa-solid fa-guitar', label: 'Shows' },
   { id: 'bares', icon: 'fa-solid fa-house', label: 'Bares' },
+  { id: 'dashboard', icon: 'fa-solid fa-chart-bar', label: 'Dashboard' },
 ]
 
 export default function AdminPage() {
@@ -950,8 +1199,9 @@ export default function AdminPage() {
 
       {/* content */}
       <main style={{ padding: '1rem', maxWidth: '430px', margin: '0 auto' }}>
-        {tab === 'shows' && <ShowsTab key="shows" />}
-        {tab === 'bares' && <BaresTab key="bares" />}
+        {tab === 'shows'     && <ShowsTab key="shows" />}
+        {tab === 'bares'     && <BaresTab key="bares" />}
+        {tab === 'dashboard' && <DashboardTab key="dashboard" />}
       </main>
 
       {/* bottom nav */}

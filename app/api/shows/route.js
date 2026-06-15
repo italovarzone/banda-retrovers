@@ -11,12 +11,15 @@ function toShowDTO(doc) {
     id: doc.id,
     venue: data.venue,
     city: data.city,
-    date: data.date, // ISO string
+    date: data.date,
     image: data.image,
     description: data.description,
     link: data.link,
     location: data.location || null,
     postUrl: data.postUrl || null,
+    valor: data.valor || 0,
+    tipo: data.tipo || '',
+    cancelado: data.cancelado || false,
   }
 }
 
@@ -53,6 +56,22 @@ function validateShow(body) {
   return null
 }
 
+export async function PATCH(request) {
+  try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const body = await request.json()
+    if (!body.id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
+    await db.collection('shows').doc(body.id).update({ cancelado: body.cancelado ?? true })
+    const saved = await db.collection('shows').doc(body.id).get()
+    return NextResponse.json(toShowDTO(saved), { status: 200 })
+  } catch (err) {
+    console.error('PATCH /api/shows error', err)
+    return NextResponse.json({ error: 'Failed to update show' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request) {
   try {
     if (!isAuthorized(request)) {
@@ -85,13 +104,16 @@ export async function POST(request) {
     const docData = {
       venue: body.venue,
       city: body.city,
-      date: body.date, // ISO string
+      date: body.date,
       dateTs: Timestamp.fromDate(dateObj),
       image: body.image || null,
       description: body.description || null,
       link: body.link || null,
       location: body.location || null,
       postUrl: body.postUrl || null,
+      valor: parseFloat(body.valor) || 0,
+      tipo: body.tipo || null,
+      cancelado: body.cancelado || false,
       createdAt: Timestamp.now(),
     }
 
