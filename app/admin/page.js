@@ -632,58 +632,69 @@ function ShowsTab() {
             <div key={show.id}
               style={{ background: C.card, border: `1px solid ${borderColor}`, borderRadius: '16px', overflow: 'hidden', opacity: (past || show.cancelado) ? 0.65 : 1 }}>
 
-              {/* linha de status */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.85rem 0', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                  {show.cancelado
-                    ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.danger, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <i className="fa-solid fa-ban" /> Cancelado
+              {/* ── cabeçalho: status + data ── */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.9rem 0.5rem', borderBottom: `1px solid ${C.border}`, gap: '0.5rem' }}>
+                {show.cancelado
+                  ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.danger, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <i className="fa-solid fa-ban" /> Cancelado
+                    </span>
+                  : isNext
+                    ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <i className="fa-solid fa-star" /> Próximo show
                       </span>
-                    : isNext
-                      ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <i className="fa-solid fa-star" /> Próximo show
-                        </span>
-                      : <span style={{ fontSize: '11px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
-                  }
-                  {show.tipo && (
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: C.muted, background: C.surface, borderRadius: '4px', padding: '1px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} />
-                      {show.tipo === 'eletrico' ? 'Elétrico' : 'Acústico'}
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                  {show.valor > 0 && (
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: C.accentText }}>
-                      {show.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </span>
-                  )}
-                  <span style={{ fontSize: '11px', color: C.muted }}>{day} · {time}</span>
-                </div>
+                    : <span style={{ fontSize: '12px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
+                }
+                <span style={{ fontSize: '12px', color: C.muted, flexShrink: 0 }}>
+                  <i className="fa-regular fa-calendar" style={{ marginRight: '5px' }} />
+                  {day} · {time}
+                </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.85rem', padding: '0.6rem 1rem 1rem' }}>
+              {/* ── corpo: imagem + info ── */}
+              <div style={{ display: 'flex', gap: '0.9rem', padding: '0.85rem 0.9rem' }}>
                 {show.image ? (
-                  <div style={{ width: '64px', height: '64px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
+                  <div style={{ width: '68px', height: '68px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
                     <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ) : (
-                  <div style={{ background: (past || show.cancelado) ? C.surface : C.accentDim, borderRadius: '10px', padding: '0.5rem 0.6rem', textAlign: 'center', minWidth: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ background: (past || show.cancelado) ? C.surface : C.accentDim, borderRadius: '10px', width: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.4rem 0' }}>
                     <div style={{ color: (past || show.cancelado) ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
                       {d.toLocaleDateString('pt-BR', { month: 'short' })}
                     </div>
-                    <div style={{ color: (past || show.cancelado) ? C.soft : C.accent, fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>
+                    <div style={{ color: (past || show.cancelado) ? C.soft : C.accent, fontSize: '24px', fontWeight: 900, lineHeight: 1.1 }}>
                       {String(d.getDate()).padStart(2, '0')}
                     </div>
                   </div>
                 )}
-                <div style={{ flex: 1, minWidth: 0 }}>
+
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   <div style={{ fontWeight: 800, color: show.cancelado ? C.muted : C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: show.cancelado ? 'line-through' : 'none' }}>
                     {show.venue}
                   </div>
-                  <div style={{ color: C.muted, fontSize: '13px', marginTop: '1px' }}>{show.city}</div>
+                  <div style={{ color: C.muted, fontSize: '13px' }}>
+                    <i className="fa-solid fa-location-dot" style={{ marginRight: '4px', fontSize: '11px' }} />
+                    {show.city}
+                  </div>
+
+                  {/* tipo + valor numa linha só */}
+                  {(show.tipo || show.valor > 0) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '2px', flexWrap: 'wrap' }}>
+                      {show.tipo && (
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: C.accentText, background: C.accentDim, border: `1px solid rgba(184,150,7,0.25)`, borderRadius: '5px', padding: '1px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} style={{ fontSize: '10px' }} />
+                          {show.tipo === 'eletrico' ? 'Elétrico' : 'Acústico'}
+                        </span>
+                      )}
+                      {show.valor > 0 && (
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: C.success }}>
+                          {show.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {show.description && (
-                    <div style={{ color: C.soft, fontSize: '12px', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ color: C.soft, fontSize: '12px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {show.description}
                     </div>
                   )}
