@@ -115,11 +115,20 @@ function TextInput({ label, value, onChange, type = 'text', required, placeholde
   )
 }
 
-function Textarea({ label, value, onChange, rows = 6 }) {
+function Textarea({ label, value, onChange, rows = 6, onGenerate, generating }) {
   return (
     <Field label={label}>
-      <textarea value={value} onChange={e => onChange(e.target.value)}
-        rows={rows} style={{ ...inputStyle, resize: 'vertical' }} />
+      <div style={{ position: 'relative' }}>
+        <textarea value={value} onChange={e => onChange(e.target.value)}
+          rows={rows} style={{ ...inputStyle, resize: 'vertical', paddingBottom: onGenerate ? '2.6rem' : undefined }} />
+        {onGenerate && (
+          <button type="button" onClick={onGenerate} disabled={generating}
+            style={{ position: 'absolute', bottom: '8px', right: '8px', background: C.accentDim, border: `1px solid rgba(184,150,7,0.35)`, borderRadius: '6px', padding: '4px 10px', color: generating ? C.muted : C.accentText, fontSize: '12px', fontWeight: 700, cursor: generating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'opacity 0.15s' }}>
+            <i className={generating ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-wand-magic-sparkles'} />
+            {generating ? 'Gerando...' : 'Gerar'}
+          </button>
+        )}
+      </div>
     </Field>
   )
 }
@@ -232,8 +241,8 @@ function PlacesInput({ value, onChangeName, onSelect }) {
 function FAB({ onClick }) {
   return (
     <button onClick={onClick}
-      style={{ position: 'fixed', bottom: `${NAV_H + 16}px`, right: '1rem', width: '54px', height: '54px', borderRadius: '50%', background: C.accent, border: 'none', color: '#0b0d10', fontSize: '1.75rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 24px rgba(184,150,7,0.45)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-      +
+      style={{ position: 'fixed', bottom: `${NAV_H + 16}px`, right: '1rem', width: '54px', height: '54px', borderRadius: '50%', background: C.accent, border: 'none', color: '#0b0d10', fontSize: '1.4rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 24px rgba(184,150,7,0.45)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+      <i className="fa-solid fa-plus" />
     </button>
   )
 }
@@ -260,7 +269,7 @@ function Sheet({ open, onClose, title, children, zIndex = 50 }) {
             <span style={{ fontWeight: 800, fontSize: '1.05rem', color: C.text }}>{title}</span>
             <button onClick={onClose}
               style={{ background: C.surface, border: 'none', color: C.muted, cursor: 'pointer', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              ×
+              <i className="fa-solid fa-xmark" />
             </button>
           </div>
         </div>
@@ -323,7 +332,7 @@ useEffect(() => {
                 </span>
               </div>
               {sel && (
-                <div style={{ position: 'absolute', top: '6px', right: '6px', background: C.accent, borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: '#0b0d10' }}>✓</div>
+                <div style={{ position: 'absolute', top: '6px', right: '6px', background: C.accent, borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: '#0b0d10' }}><i className="fa-solid fa-check" /></div>
               )}
             </button>
           )
@@ -340,6 +349,23 @@ function ShowForm({ open, onClose, editing, onSaved }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [generating, setGenerating] = useState(false)
+
+  async function generateDescription() {
+    setGenerating(true)
+    setError('')
+    try {
+      const res = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ venue: form.venue, city: form.city, date: form.date }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar')
+      setForm(p => ({ ...p, description: data.description }))
+    } catch (e) { setError(e.message) }
+    finally { setGenerating(false) }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -404,7 +430,7 @@ function ShowForm({ open, onClose, editing, onSaved }) {
               ) : (
                 <span style={{ color: C.muted, fontSize: '14px', padding: '0.7rem 0.85rem' }}>Toque para selecionar...</span>
               )}
-              <span style={{ color: C.muted, paddingRight: '0.85rem', fontSize: '18px' }}>›</span>
+              <span style={{ color: C.muted, paddingRight: '0.85rem', fontSize: '14px' }}><i className="fa-solid fa-chevron-right" /></span>
             </button>
             {form.image && (
               <button type="button" onClick={() => set('image')('')}
@@ -414,7 +440,7 @@ function ShowForm({ open, onClose, editing, onSaved }) {
             )}
           </Field>
 
-          <Textarea label="Descrição" value={form.description} onChange={set('description')} />
+          <Textarea label="Descrição" value={form.description} onChange={set('description')} onGenerate={generateDescription} generating={generating} />
           <TextInput label="Link do mapa (Google Maps)" value={form.link} onChange={set('link')} />
           <TextInput label="Link do post (Instagram)" value={form.postUrl} onChange={set('postUrl')} />
 
@@ -435,12 +461,44 @@ function ShowForm({ open, onClose, editing, onSaved }) {
 
 // ─── shows tab ────────────────────────────────────────────────────────────────
 
+function relativeTimeLabel(showDate, now) {
+  const sd = new Date(showDate.getFullYear(), showDate.getMonth(), showDate.getDate())
+  const nd = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((sd - nd) / 86400000)
+
+  if (days === 0)  return { label: 'Hoje!',             color: C.success }
+  if (days === 1)  return { label: 'Amanhã',            color: C.accentText }
+  if (days === 2)  return { label: 'Daqui 2 dias',      color: C.accentText }
+  if (days > 2 && days < 7)  return { label: `Daqui ${days} dias`,  color: C.accentText }
+  if (days === 7)  return { label: 'Daqui uma semana',  color: C.muted }
+  if (days < 14)   return { label: `Daqui ${days} dias`, color: C.muted }
+  if (days === 14) return { label: 'Daqui 2 semanas',   color: C.muted }
+  if (days < 60)   return { label: `Daqui ${Math.round(days / 7)} semanas`, color: C.muted }
+  const m = Math.round(days / 30)
+  return { label: `Daqui ${m} ${m === 1 ? 'mês' : 'meses'}`, color: C.muted }
+}
+
+function pastTimeLabel(showDate, now) {
+  const sd = new Date(showDate.getFullYear(), showDate.getMonth(), showDate.getDate())
+  const nd = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((nd - sd) / 86400000)
+
+  if (days === 0)  return 'Hoje'
+  if (days === 1)  return 'Ontem'
+  if (days < 7)   return `${days} dias atrás`
+  if (days < 14)  return 'Uma semana atrás'
+  if (days < 60)  return `${Math.round(days / 7)} semanas atrás`
+  const m = Math.round(days / 30)
+  return `${m} ${m === 1 ? 'mês' : 'meses'} atrás`
+}
+
 function ShowsTab() {
   const [shows, setShows] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [filter, setFilter] = useState('upcoming')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -459,9 +517,7 @@ function ShowsTab() {
   async function handleDelete(id) {
     if (!confirm('Deletar este show?')) return
     try {
-      const res = await fetch(`/api/shows?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(`/api/shows?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Erro ao deletar')
       setShows(p => p.filter(s => s.id !== id))
     } catch (e) { setError(e.message) }
@@ -469,38 +525,92 @@ function ShowsTab() {
 
   const now = new Date()
 
+  const upcoming = shows
+    .filter(s => new Date(s.date) >= now)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  const past = shows
+    .filter(s => new Date(s.date) < now)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const filtered = filter === 'upcoming' ? upcoming : filter === 'past' ? past : [...upcoming, ...past]
+
+  const FILTERS = [
+    { id: 'all',      label: 'Todos' },
+    { id: 'upcoming', label: `Próximos (${upcoming.length})` },
+    { id: 'past',     label: `Passados (${past.length})` },
+  ]
+
   return (
     <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
       <ErrorMsg msg={error} />
+
+      {/* filtros */}
+      {!loading && shows.length > 0 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          {FILTERS.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              style={{ background: filter === f.id ? C.accent : C.surface, color: filter === f.id ? '#0b0d10' : C.muted, border: 'none', borderRadius: '20px', padding: '0.35rem 0.85rem', fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
 
       {!loading && shows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: C.muted }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎸</div>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem', color: C.muted }}><i className="fa-solid fa-guitar" /></div>
           <p style={{ margin: 0 }}>Nenhum show cadastrado.</p>
           <p style={{ margin: '0.25rem 0 0', fontSize: '13px' }}>Toque no + para adicionar.</p>
         </div>
       )}
 
+      {!loading && filtered.length === 0 && shows.length > 0 && (
+        <p style={{ textAlign: 'center', color: C.muted, padding: '2rem 0', fontSize: '13px' }}>
+          Nenhum show nessa categoria.
+        </p>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {shows.map(show => {
+        {filtered.map((show, idx) => {
           const d = new Date(show.date)
           const past = d < now
+          const isNext = !past && idx === 0 && filter !== 'past'
           const { day, time } = fmtDate(show.date)
+          const rel = past
+            ? { label: pastTimeLabel(d, now), color: C.muted }
+            : relativeTimeLabel(d, now)
+
           return (
             <div key={show.id}
-              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden', opacity: past ? 0.6 : 1 }}>
-              <div style={{ display: 'flex', gap: '0.85rem', padding: '1rem' }}>
-                {/* image or date badge */}
+              style={{ background: C.card, border: `1px solid ${isNext ? C.accent : C.border}`, borderRadius: '16px', overflow: 'hidden', opacity: past ? 0.6 : 1 }}>
+
+              {/* badge de tempo relativo */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.85rem 0' }}>
+                {isNext
+                  ? <span style={{ fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="fa-solid fa-star" /> Próximo show
+                    </span>
+                  : <span style={{ fontSize: '11px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
+                }
+                <span style={{ fontSize: '11px', color: C.muted }}>{day} · {time}</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.85rem', padding: '0.6rem 1rem 1rem' }}>
                 {show.image ? (
                   <div style={{ width: '64px', height: '64px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
                     <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ) : (
                   <div style={{ background: past ? C.surface : C.accentDim, borderRadius: '10px', padding: '0.5rem 0.6rem', textAlign: 'center', minWidth: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ color: past ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>{day}</div>
-                    <div style={{ color: past ? C.soft : C.accent, fontSize: '13px', fontWeight: 800 }}>{time}</div>
+                    <div style={{ color: past ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
+                      {d.toLocaleDateString('pt-BR', { month: 'short' })}
+                    </div>
+                    <div style={{ color: past ? C.soft : C.accent, fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>
+                      {String(d.getDate()).padStart(2, '0')}
+                    </div>
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -508,9 +618,6 @@ function ShowsTab() {
                     {show.venue}
                   </div>
                   <div style={{ color: C.muted, fontSize: '13px', marginTop: '1px' }}>{show.city}</div>
-                  {show.image && (
-                    <div style={{ color: C.muted, fontSize: '12px', marginTop: '2px' }}>{day} · {time}</div>
-                  )}
                   {show.description && (
                     <div style={{ color: C.soft, fontSize: '12px', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {show.description}
@@ -518,14 +625,15 @@ function ShowsTab() {
                   )}
                 </div>
               </div>
+
               <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
                 <button onClick={() => { setEditing(show); setFormOpen(true) }}
                   style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
-                  ✏️ Editar
+                  <i className="fa-solid fa-pen" /> Editar
                 </button>
                 <button onClick={() => handleDelete(show.id)}
                   style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.75rem', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
-                  🗑 Deletar
+                  <i className="fa-solid fa-trash" /> Deletar
                 </button>
               </div>
             </div>
@@ -654,7 +762,7 @@ function BaresTab() {
 
       {!loading && images.length === 0 && (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: C.muted }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🏠</div>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem', color: C.muted }}><i className="fa-solid fa-house" /></div>
           <p style={{ margin: 0 }}>Nenhum bar cadastrado ainda.</p>
           <p style={{ margin: '0.25rem 0 0', fontSize: '13px' }}>Toque no + para adicionar.</p>
         </div>
@@ -675,11 +783,11 @@ function BaresTab() {
             <div style={{ display: 'flex', borderTop: `1px solid ${C.border}`, marginTop: '0.5rem' }}>
               <button onClick={() => openEdit(img)}
                 style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.65rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
-                ✏️ Editar
+                <i className="fa-solid fa-pen" /> Editar
               </button>
               <button onClick={() => handleDelete(img)}
                 style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.65rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
-                🗑 Deletar
+                <i className="fa-solid fa-trash" /> Deletar
               </button>
             </div>
           </div>
@@ -772,7 +880,7 @@ function LoginScreen({ onLogin }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', padding: '1.5rem', background: C.bg }}>
       <div style={{ width: '100%', maxWidth: '360px' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎸</div>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: C.accentText }}><i className="fa-solid fa-guitar" /></div>
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>Admin</h1>
           <p style={{ margin: '0.25rem 0 0', color: C.muted, fontSize: '14px' }}>Banda Retrovers</p>
         </div>
@@ -794,8 +902,8 @@ function LoginScreen({ onLogin }) {
 // ─── root ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'shows', icon: '🎸', label: 'Shows' },
-  { id: 'bares', icon: '🏠', label: 'Bares' },
+  { id: 'shows', icon: 'fa-solid fa-guitar', label: 'Shows' },
+  { id: 'bares', icon: 'fa-solid fa-house', label: 'Bares' },
 ]
 
 export default function AdminPage() {
@@ -831,12 +939,12 @@ export default function AdminPage() {
     <div style={{ background: C.bg, minHeight: '100dvh', color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '14px' }}>
       {/* top bar */}
       <header style={{ position: 'sticky', top: 0, zIndex: 30, background: C.card, borderBottom: `1px solid ${C.border}`, height: `${TOP_H}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.25rem' }}>
-        <span style={{ fontWeight: 900, fontSize: '1rem', color: C.text }}>
-          {tabTitle?.icon} {tabTitle?.label}
+        <span style={{ fontWeight: 900, fontSize: '1rem', color: C.text, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <i className={tabTitle?.icon} /> {tabTitle?.label}
         </span>
         <button onClick={logout}
-          style={{ background: C.surface, border: 'none', borderRadius: '8px', color: C.muted, padding: '0.45rem 1rem', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
-          Sair
+          style={{ background: C.surface, border: 'none', borderRadius: '8px', color: C.muted, padding: '0.45rem 1rem', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <i className="fa-solid fa-right-from-bracket" /> Sair
         </button>
       </header>
 
@@ -851,7 +959,7 @@ export default function AdminPage() {
         {TABS.map(({ id, icon, label }) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', color: tab === id ? C.accentText : C.muted, borderTop: `2px solid ${tab === id ? C.accent : 'transparent'}`, paddingTop: '2px' }}>
-            <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: '1.25rem', lineHeight: 1 }}><i className={icon} /></span>
             <span style={{ fontSize: '11px', fontWeight: 700 }}>{label}</span>
           </button>
         ))}
