@@ -1109,31 +1109,44 @@ function MembersSheet({ open, onClose }) {
 function PaymentSheet({ open, onClose, show }) {
   const [members, setMembers]   = useState([])
   const [loading, setLoading]   = useState(false)
-  const [selected, setSelected] = useState([]) // ids selecionados
-  const [splits, setSplits]     = useState({}) // id → valor string
-  const [copied, setCopied]     = useState(null) // id que acabou de copiar
-  const [pixInfo, setPixInfo]   = useState({})   // id → { payload, normalizedKey }
+  const [selected, setSelected] = useState([])
+  const [splits, setSplits]     = useState({})
+  const [locked, setLocked]     = useState(new Set()) // ids com valor fixado manualmente
+  const [copied, setCopied]     = useState(null)
+  const [pixInfo, setPixInfo]   = useState({})
 
-  const total = show?.valor || 0
+  const total  = show?.valor || 0
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
 
+  // Distribui igualmente entre ids, respeitando os travados
+  function buildEqualSplits(ids, currentSplits, lockedSet) {
+    const free   = ids.filter(id => !lockedSet.has(id))
+    const fixed  = ids.filter(id =>  lockedSet.has(id))
+    const usedByFixed = fixed.reduce((acc, id) => acc + (parseFloat(currentSplits[id]) || 0), 0)
+    const remaining   = parseFloat((total - usedByFixed).toFixed(2))
+    const map = { ...currentSplits }
+    if (free.length === 0) return map
+    const each = parseFloat((remaining / free.length).toFixed(2))
+    free.forEach((id, i) => {
+      map[id] = String(i === free.length - 1
+        ? parseFloat((remaining - each * (free.length - 1)).toFixed(2))
+        : each)
+    })
+    return map
+  }
+
   useEffect(() => {
-    if (!open) { setSelected([]); setSplits({}); setCopied(null); return }
+    if (!open) { setSelected([]); setSplits({}); setLocked(new Set()); setCopied(null); setPixInfo({}); return }
     setLoading(true)
     fetch('/api/members')
       .then(r => r.json())
       .then(d => {
         const list = Array.isArray(d) ? d : []
         setMembers(list)
-        // seleciona todos por padrão e divide igualmente
         const ids = list.map(m => m.id)
         setSelected(ids)
-        if (ids.length > 0) {
-          const each = parseFloat((total / ids.length).toFixed(2))
-          const map  = {}
-          ids.forEach((id, i) => { map[id] = i === ids.length - 1 ? String(parseFloat((total - each * (ids.length - 1)).toFixed(2))) : String(each) })
-          setSplits(map)
-        }
+        setLocked(new Set())
+        setSplits(buildEqualSplits(ids, {}, new Set()))
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -1142,25 +1155,34 @@ function PaymentSheet({ open, onClose, show }) {
   function toggleMember(id) {
     const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]
     setSelected(next)
-    if (next.length > 0) redistribute(next)
+    const nextLocked = new Set([...locked].filter(x => next.includes(x)))
+    setLocked(nextLocked)
+    setSplits(p => buildEqualSplits(next, p, nextLocked))
   }
 
-  function redistribute(ids) {
-    ids = ids || selected
-    if (ids.length === 0) return
-    const each = parseFloat((total / ids.length).toFixed(2))
-    const map  = {}
-    ids.forEach((id, i) => { map[id] = i === ids.length - 1 ? String(parseFloat((total - each * (ids.length - 1)).toFixed(2))) : String(each) })
-    setSplits(map)
+  // "Redistribuir igual" — zera todos os travamentos
+  function redistributeEqual() {
+    setLocked(new Set())
+    setSplits(buildEqualSplits(selected, {}, new Set()))
   }
 
+  // Ajuste manual: trava o integrante e redistribui o restante
   function setAmount(id, val) {
-    setSplits(p => ({ ...p, [id]: val }))
+    const nextSplits = { ...splits, [id]: val }
+    const nextLocked = new Set(locked).add(id)
+    setLocked(nextLocked)
+    // Só redistribui se o valor já está preenchido (não enquanto digita)
+    const num = parseFloat(val)
+    if (!isNaN(num) && val !== '' && val !== '-') {
+      setSplits(buildEqualSplits(selected, nextSplits, nextLocked))
+    } else {
+      setSplits(nextSplits)
+    }
   }
 
-  const splitSum    = selected.reduce((acc, id) => acc + (parseFloat(splits[id]) || 0), 0)
-  const remainder   = parseFloat((total - splitSum).toFixed(2))
-  const balanced    = Math.abs(remainder) < 0.01
+  const splitSum = selected.reduce((acc, id) => acc + (parseFloat(splits[id]) || 0), 0)
+  const remainder = parseFloat((total - splitSum).toFixed(2))
+  const balanced  = Math.abs(remainder) < 0.01
 
   async function copyPix(member) {
     const amount = parseFloat(splits[member.id]) || 0
@@ -1211,15 +1233,16 @@ function PaymentSheet({ open, onClose, show }) {
             <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Dividir entre {selected.length} integrante{selected.length !== 1 ? 's' : ''}
             </span>
-            <button onClick={() => redistribute(selected)}
-              style={{ background: 'none', border: 'none', color: C.accentText, fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
-              <i className="fa-solid fa-rotate" style={{ marginRight: '3px' }} />Redistribuir igual
+            <button onClick={redistributeEqual}
+              style={{ background: 'none', border: 'none', color: locked.size > 0 ? C.accentText : C.muted, fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <i className="fa-solid fa-rotate" style={{ marginRight: '3px' }} />Redistribuir igual{locked.size > 0 ? ` (${locked.size} fixado${locked.size > 1 ? 's' : ''})` : ''}
             </button>
           </div>
 
           {/* lista de integrantes */}
           {members.map(m => {
             const sel    = selected.includes(m.id)
+            const isLock = locked.has(m.id)
             const amount = parseFloat(splits[m.id]) || 0
             const isCop  = copied === m.id
             return (
@@ -1234,7 +1257,20 @@ function PaymentSheet({ open, onClose, show }) {
                     <div style={{ fontWeight: 700, color: sel ? C.text : C.muted, fontSize: '14px' }}>{m.name}</div>
                     {m.pixKey && <div style={{ color: C.muted, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.pixKey}</div>}
                   </div>
-                  {sel && <span style={{ color: C.success, fontWeight: 800, fontSize: '14px', flexShrink: 0 }}>{fmtBRL(amount)}</span>}
+                  {sel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <span style={{ color: isLock ? C.accentText : C.success, fontWeight: 800, fontSize: '14px' }}>{fmtBRL(amount)}</span>
+                      <button onClick={() => {
+                        if (isLock) {
+                          const next = new Set(locked); next.delete(m.id); setLocked(next)
+                          setSplits(p => buildEqualSplits(selected, p, next))
+                        }
+                      }} title={isLock ? 'Clique para liberar e redistribuir' : 'Valor livre'}
+                        style={{ background: 'none', border: 'none', cursor: isLock ? 'pointer' : 'default', color: isLock ? C.accentText : 'transparent', fontSize: '11px', padding: 0, lineHeight: 1 }}>
+                        <i className={isLock ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* controles de valor + botão pagar */}
