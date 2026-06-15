@@ -534,6 +534,7 @@ function ShowsTab() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('upcoming')
+  const [paymentShow, setPaymentShow] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -727,6 +728,12 @@ function ShowsTab() {
                   style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
                   <i className="fa-solid fa-pen" /> Editar
                 </button>
+                {show.valor > 0 && (
+                  <button onClick={() => setPaymentShow(show)}
+                    style={{ flex: 1, background: 'none', border: 'none', color: C.success, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
+                    <i className="fa-brands fa-pix" /> Pagar
+                  </button>
+                )}
                 <button onClick={() => handleCancel(show)}
                   style={{ flex: 1, background: 'none', border: 'none', color: show.cancelado ? C.success : C.muted, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
                   <i className={show.cancelado ? 'fa-solid fa-rotate-left' : 'fa-solid fa-ban'} /> {show.cancelado ? 'Reativar' : 'Cancelar'}
@@ -745,6 +752,8 @@ function ShowsTab() {
 
       <ShowForm open={formOpen} onClose={() => setFormOpen(false)}
         editing={editing} onSaved={load} />
+
+      <PaymentSheet open={!!paymentShow} onClose={() => setPaymentShow(null)} show={paymentShow} />
     </div>
   )
 }
@@ -999,6 +1008,284 @@ function LoginScreen({ onLogin }) {
   )
 }
 
+// ─── members sheet ────────────────────────────────────────────────────────────
+
+const EMPTY_MEMBER = { id: '', name: '', pixKey: '', city: '' }
+
+function MembersSheet({ open, onClose }) {
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(null) // null = lista, {} = form
+  const [form, setForm]       = useState(EMPTY_MEMBER)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+
+  const setF = k => v => setForm(p => ({ ...p, [k]: v }))
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    setEditing(null)
+    setError('')
+    fetch('/api/members')
+      .then(r => r.json())
+      .then(d => setMembers(Array.isArray(d) ? d : []))
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [open])
+
+  function openNew()  { setForm(EMPTY_MEMBER); setEditing('new') }
+  function openEdit(m){ setForm({ ...m });     setEditing(m.id)  }
+
+  async function save(e) {
+    e.preventDefault()
+    setSaving(true); setError('')
+    try {
+      const res  = await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+      if (form.id) { setMembers(p => p.map(m => m.id === form.id ? data : m)) }
+      else         { setMembers(p => [...p, data].sort((a,b) => a.name.localeCompare(b.name))) }
+      setEditing(null)
+    } catch(e) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
+  async function del(m) {
+    if (!confirm(`Remover ${m.name}?`)) return
+    await fetch(`/api/members?id=${m.id}`, { method: 'DELETE' })
+    setMembers(p => p.filter(x => x.id !== m.id))
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Integrantes">
+      {error && <div style={{ background: C.dangerDim, border: `1px solid ${C.dangerBorder}`, borderRadius: '10px', padding: '0.65rem 0.9rem', color: C.danger, fontSize: '13px', marginBottom: '1rem' }}>{error}</div>}
+
+      {editing ? (
+        <form onSubmit={save}>
+          <TextInput label="Nome" value={form.name} onChange={setF('name')} required />
+          <TextInput label="Chave PIX (CPF, e-mail, telefone ou aleatória)" value={form.pixKey} onChange={setF('pixKey')} />
+          <TextInput label="Cidade" value={form.city} onChange={setF('city')} />
+          <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.5rem' }}>
+            <button type="button" onClick={() => setEditing(null)}
+              style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '0.75rem', color: C.muted, fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              style={{ flex: 2, background: C.accent, border: 'none', borderRadius: '10px', padding: '0.75rem', color: '#0b0d10', fontWeight: 800, fontSize: '14px', cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          {loading && <p style={{ textAlign: 'center', color: C.muted }}>Carregando...</p>}
+          {!loading && members.length === 0 && (
+            <p style={{ textAlign: 'center', color: C.muted, fontSize: '13px' }}>Nenhum integrante cadastrado.</p>
+          )}
+          {members.map(m => (
+            <div key={m.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '0.75rem 0.9rem', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, color: C.text, fontSize: '14px' }}>{m.name}</div>
+                {m.pixKey && <div style={{ color: C.muted, fontSize: '12px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><i className="fa-solid fa-key" style={{ marginRight: '4px', fontSize: '10px' }} />{m.pixKey}</div>}
+                {m.city   && <div style={{ color: C.muted, fontSize: '12px' }}><i className="fa-solid fa-location-dot" style={{ marginRight: '4px', fontSize: '10px' }} />{m.city}</div>}
+              </div>
+              <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', color: C.accentText, cursor: 'pointer', padding: '0.35rem', fontSize: '14px' }}><i className="fa-solid fa-pen" /></button>
+              <button onClick={() => del(m)}       style={{ background: 'none', border: 'none', color: C.danger,     cursor: 'pointer', padding: '0.35rem', fontSize: '14px' }}><i className="fa-solid fa-trash" /></button>
+            </div>
+          ))}
+          <button onClick={openNew}
+            style={{ width: '100%', background: C.accentDim, border: `1px dashed ${C.accent}`, borderRadius: '12px', padding: '0.75rem', color: C.accentText, fontWeight: 700, fontSize: '14px', cursor: 'pointer', marginTop: '0.25rem' }}>
+            <i className="fa-solid fa-plus" style={{ marginRight: '6px' }} />Adicionar integrante
+          </button>
+        </>
+      )}
+    </Sheet>
+  )
+}
+
+// ─── payment sheet ────────────────────────────────────────────────────────────
+
+function PaymentSheet({ open, onClose, show }) {
+  const [members, setMembers]   = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [selected, setSelected] = useState([]) // ids selecionados
+  const [splits, setSplits]     = useState({}) // id → valor string
+  const [copied, setCopied]     = useState(null) // id que acabou de copiar
+  const [pixInfo, setPixInfo]   = useState({})   // id → { payload, normalizedKey }
+
+  const total = show?.valor || 0
+  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+
+  useEffect(() => {
+    if (!open) { setSelected([]); setSplits({}); setCopied(null); return }
+    setLoading(true)
+    fetch('/api/members')
+      .then(r => r.json())
+      .then(d => {
+        const list = Array.isArray(d) ? d : []
+        setMembers(list)
+        // seleciona todos por padrão e divide igualmente
+        const ids = list.map(m => m.id)
+        setSelected(ids)
+        if (ids.length > 0) {
+          const each = parseFloat((total / ids.length).toFixed(2))
+          const map  = {}
+          ids.forEach((id, i) => { map[id] = i === ids.length - 1 ? String(parseFloat((total - each * (ids.length - 1)).toFixed(2))) : String(each) })
+          setSplits(map)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [open, total])
+
+  function toggleMember(id) {
+    const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]
+    setSelected(next)
+    if (next.length > 0) redistribute(next)
+  }
+
+  function redistribute(ids) {
+    ids = ids || selected
+    if (ids.length === 0) return
+    const each = parseFloat((total / ids.length).toFixed(2))
+    const map  = {}
+    ids.forEach((id, i) => { map[id] = i === ids.length - 1 ? String(parseFloat((total - each * (ids.length - 1)).toFixed(2))) : String(each) })
+    setSplits(map)
+  }
+
+  function setAmount(id, val) {
+    setSplits(p => ({ ...p, [id]: val }))
+  }
+
+  const splitSum    = selected.reduce((acc, id) => acc + (parseFloat(splits[id]) || 0), 0)
+  const remainder   = parseFloat((total - splitSum).toFixed(2))
+  const balanced    = Math.abs(remainder) < 0.01
+
+  async function copyPix(member) {
+    const amount = parseFloat(splits[member.id]) || 0
+    if (!member.pixKey) { alert('Integrante sem chave PIX cadastrada.'); return }
+    try {
+      const res  = await fetch('/api/pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pixKey: member.pixKey, amount, name: member.name, city: member.city }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar PIX')
+      setPixInfo(p => ({ ...p, [member.id]: { payload: data.payload, normalizedKey: data.normalizedKey } }))
+      await navigator.clipboard.writeText(data.payload)
+      setCopied(member.id)
+      setTimeout(() => setCopied(null), 2500)
+    } catch (e) {
+      alert(`Erro ao gerar PIX: ${e.message}`)
+    }
+  }
+
+  if (!show) return null
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Pagamento do Show">
+      {/* resumo do show */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+        <div style={{ fontWeight: 800, color: C.text, fontSize: '15px', marginBottom: '2px' }}>{show.venue}</div>
+        <div style={{ color: C.muted, fontSize: '12px', marginBottom: '0.5rem' }}><i className="fa-solid fa-location-dot" style={{ marginRight: '4px' }} />{show.city}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+          <span style={{ color: C.muted, fontSize: '12px' }}>Valor total:</span>
+          <span style={{ color: C.success, fontWeight: 900, fontSize: '20px' }}>{fmtBRL(total)}</span>
+        </div>
+      </div>
+
+      {loading && <p style={{ textAlign: 'center', color: C.muted, fontSize: '13px' }}>Carregando integrantes...</p>}
+
+      {!loading && members.length === 0 && (
+        <p style={{ textAlign: 'center', color: C.muted, fontSize: '13px' }}>
+          Cadastre integrantes no Dashboard → Gerenciar Integrantes.
+        </p>
+      )}
+
+      {!loading && members.length > 0 && (
+        <>
+          {/* cabeçalho divisão */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Dividir entre {selected.length} integrante{selected.length !== 1 ? 's' : ''}
+            </span>
+            <button onClick={() => redistribute(selected)}
+              style={{ background: 'none', border: 'none', color: C.accentText, fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <i className="fa-solid fa-rotate" style={{ marginRight: '3px' }} />Redistribuir igual
+            </button>
+          </div>
+
+          {/* lista de integrantes */}
+          {members.map(m => {
+            const sel    = selected.includes(m.id)
+            const amount = parseFloat(splits[m.id]) || 0
+            const isCop  = copied === m.id
+            return (
+              <div key={m.id} style={{ background: sel ? C.card : C.surface, border: `1px solid ${sel ? C.border : 'transparent'}`, borderRadius: '12px', padding: '0.75rem 0.9rem', marginBottom: '0.55rem', transition: 'background 0.2s' }}>
+                {/* linha nome + toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: sel ? '0.6rem' : 0 }}>
+                  <span onClick={() => toggleMember(m.id)}
+                    style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${sel ? C.accent : C.border}`, background: sel ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>
+                    {sel && <i className="fa-solid fa-check" style={{ fontSize: '9px', color: '#0b0d10' }} />}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: sel ? C.text : C.muted, fontSize: '14px' }}>{m.name}</div>
+                    {m.pixKey && <div style={{ color: C.muted, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.pixKey}</div>}
+                  </div>
+                  {sel && <span style={{ color: C.success, fontWeight: 800, fontSize: '14px', flexShrink: 0 }}>{fmtBRL(amount)}</span>}
+                </div>
+
+                {/* controles de valor + botão pagar */}
+                {sel && (
+                  <>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <span style={{ position: 'absolute', left: '0.7rem', top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: '12px', pointerEvents: 'none' }}>R$</span>
+                        <input type="number" value={splits[m.id] ?? ''} min="0" step="0.01"
+                          onChange={e => setAmount(m.id, e.target.value)}
+                          style={{ width: '100%', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '0.45rem 0.7rem 0.45rem 2.2rem', color: C.text, fontSize: '14px', fontWeight: 700, boxSizing: 'border-box', outline: 'none' }} />
+                      </div>
+                      <button onClick={() => copyPix(m)} disabled={!m.pixKey || amount <= 0}
+                        style={{ background: isCop ? C.success : C.accent, border: 'none', borderRadius: '8px', padding: '0.45rem 0.85rem', color: '#0b0d10', fontWeight: 800, fontSize: '12px', cursor: m.pixKey && amount > 0 ? 'pointer' : 'not-allowed', opacity: (!m.pixKey || amount <= 0) ? 0.5 : 1, whiteSpace: 'nowrap', transition: 'background 0.25s', flexShrink: 0 }}>
+                        {isCop
+                          ? <><i className="fa-solid fa-check" style={{ marginRight: '4px' }} />Copiado!</>
+                          : <><i className="fa-brands fa-pix" style={{ marginRight: '4px' }} />Copiar PIX</>
+                        }
+                      </button>
+                    </div>
+                    {pixInfo[m.id] && (
+                      <div style={{ marginTop: '0.45rem', background: C.bg, borderRadius: '7px', padding: '0.5rem 0.65rem' }}>
+                        <div style={{ color: C.muted, fontSize: '10px', marginBottom: '3px' }}>
+                          Chave: <strong style={{ color: C.accentText }}>{pixInfo[m.id].normalizedKey}</strong>
+                        </div>
+                        <div style={{ color: C.muted, fontSize: '9px', wordBreak: 'break-all', lineHeight: 1.4, fontFamily: 'monospace' }}>
+                          {pixInfo[m.id].payload}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          {/* rodapé com saldo */}
+          <div style={{ background: balanced ? C.successDim : C.dangerDim, border: `1px solid ${balanced ? C.successBorder : C.dangerBorder}`, borderRadius: '10px', padding: '0.65rem 0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: balanced ? C.success : C.danger }}>
+              {balanced ? <><i className="fa-solid fa-circle-check" style={{ marginRight: '5px' }} />Divisão ok</> : <><i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '5px' }} />{remainder > 0 ? `Faltam ${fmtBRL(remainder)}` : `Excede ${fmtBRL(-remainder)}`}</>}
+            </span>
+            <span style={{ fontSize: '12px', color: C.muted }}>
+              Total: <strong style={{ color: C.text }}>{fmtBRL(splitSum)}</strong> / {fmtBRL(total)}
+            </span>
+          </div>
+        </>
+      )}
+    </Sheet>
+  )
+}
+
 // ─── dashboard tab ────────────────────────────────────────────────────────────
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -1064,11 +1351,12 @@ function MiniBar({ value, max, color }) {
 }
 
 function DashboardTab() {
-  const [shows, setShows]       = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [year, setYear]         = useState(new Date().getFullYear())
+  const [shows, setShows]         = useState([])
+  const [loading, setLoading]     = useState(false)
+  const [year, setYear]           = useState(new Date().getFullYear())
   const _curMonth = new Date().getMonth()
-  const [range, setRange]       = useState([_curMonth, _curMonth])
+  const [range, setRange]         = useState([_curMonth, _curMonth])
+  const [membersOpen, setMembersOpen] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -1158,6 +1446,17 @@ function DashboardTab() {
   return (
     <div style={{ paddingBottom: `${NAV_H + 24}px` }}>
       <style>{DASH_CSS}</style>
+
+      {/* botão gerenciar integrantes */}
+      <button onClick={() => setMembersOpen(true)}
+        style={{ width: '100%', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '0.75rem 1rem', color: C.accentText, fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+        <i className="fa-solid fa-users" />
+        <span style={{ flex: 1, textAlign: 'left' }}>Gerenciar Integrantes</span>
+        <i className="fa-solid fa-chevron-right" style={{ color: C.muted, fontSize: '11px' }} />
+      </button>
+
+      <MembersSheet open={membersOpen} onClose={() => setMembersOpen(false)} />
+
       {loading && <p style={{ textAlign: 'center', color: C.muted, padding: '3rem 0' }}>Carregando...</p>}
 
       {!loading && (
