@@ -535,6 +535,7 @@ function ShowsTab() {
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('upcoming')
   const [paymentShow, setPaymentShow] = useState(null)
+  const [swipeOpen, setSwipeOpen] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -633,7 +634,8 @@ function ShowsTab() {
         </p>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* lista full-bleed: escapa o padding do <main> com margem negativa */}
+      <div style={{ margin: '0 -1rem' }}>
         {filtered.map((show, idx) => {
           const d = new Date(show.date)
           const past = d < now
@@ -643,105 +645,106 @@ function ShowsTab() {
             ? { label: pastTimeLabel(d, now), color: C.muted }
             : relativeTimeLabel(d, now)
 
-          const borderColor = show.cancelado ? C.dangerBorder : isNext ? C.accent : C.border
+          const actions = [
+            { key: 'edit', icon: 'fa-solid fa-pen', label: 'Editar', color: C.accentText, onClick: () => { setEditing(show); setFormOpen(true) } },
+            ...(show.valor > 0 ? [{ key: 'pay', icon: 'fa-brands fa-pix', label: 'Pagar', color: C.success, onClick: () => setPaymentShow(show) }] : []),
+            { key: 'cancel', icon: show.cancelado ? 'fa-solid fa-rotate-left' : 'fa-solid fa-ban', label: show.cancelado ? 'Reativar' : 'Cancelar', color: show.cancelado ? C.success : C.muted, onClick: () => handleCancel(show) },
+            { key: 'delete', icon: 'fa-solid fa-trash', label: 'Deletar', color: C.danger, onClick: () => handleDelete(show.id) },
+          ]
+          const ACTION_W = 64
+          const panelWidth = actions.length * ACTION_W
+          const isOpen = swipeOpen === show.id
 
           return (
-            <div key={show.id}
-              style={{ background: C.card, border: `1px solid ${borderColor}`, borderRadius: '16px', overflow: 'hidden', opacity: (past || show.cancelado) ? 0.65 : 1 }}>
-
-              {/* ── cabeçalho: status + data ── */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.9rem 0.5rem', borderBottom: `1px solid ${C.border}`, gap: '0.5rem' }}>
-                {show.cancelado
-                  ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.danger, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <i className="fa-solid fa-ban" /> Cancelado
-                    </span>
-                  : isNext
-                    ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <i className="fa-solid fa-star" /> Próximo show
-                      </span>
-                    : <span style={{ fontSize: '12px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
-                }
-                <span style={{ fontSize: '12px', color: C.muted, flexShrink: 0 }}>
-                  <i className="fa-regular fa-calendar" style={{ marginRight: '5px' }} />
-                  {day} · {time}
-                </span>
-              </div>
-
-              {/* ── corpo: imagem + info ── */}
-              <div style={{ display: 'flex', gap: '0.9rem', padding: '0.85rem 0.9rem' }}>
-                {show.image ? (
-                  <div style={{ width: '68px', height: '68px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
-                    <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                ) : (
-                  <div style={{ background: (past || show.cancelado) ? C.surface : C.accentDim, borderRadius: '10px', width: '58px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.4rem 0' }}>
-                    <div style={{ color: (past || show.cancelado) ? C.muted : C.accentText, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' }}>
-                      {d.toLocaleDateString('pt-BR', { month: 'short' })}
-                    </div>
-                    <div style={{ color: (past || show.cancelado) ? C.soft : C.accent, fontSize: '24px', fontWeight: 900, lineHeight: 1.1 }}>
-                      {String(d.getDate()).padStart(2, '0')}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ fontWeight: 800, color: show.cancelado ? C.muted : C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: show.cancelado ? 'line-through' : 'none' }}>
-                    {show.venue}
-                  </div>
-                  <div style={{ color: C.muted, fontSize: '13px' }}>
-                    <i className="fa-solid fa-location-dot" style={{ marginRight: '4px', fontSize: '11px' }} />
-                    {show.city}
-                  </div>
-
-                  {/* tipo + valor + particular numa linha só */}
-                  {(show.tipo || show.valor > 0 || show.particular) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '2px', flexWrap: 'wrap' }}>
-                      {show.particular && (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: '5px', padding: '1px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <i className="fa-solid fa-lock" style={{ fontSize: '10px' }} />Particular
-                        </span>
-                      )}
-                      {show.tipo && (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: C.accentText, background: C.accentDim, border: `1px solid rgba(184,150,7,0.25)`, borderRadius: '5px', padding: '1px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} style={{ fontSize: '10px' }} />
-                          {show.tipo === 'eletrico' ? 'Elétrico' : 'Acústico'}
-                        </span>
-                      )}
-                      {show.valor > 0 && (
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: C.success }}>
-                          {show.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {show.description && (
-                    <div style={{ color: C.soft, fontSize: '12px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {show.description}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', borderTop: `1px solid ${C.border}` }}>
-                <button onClick={() => { setEditing(show); setFormOpen(true) }}
-                  style={{ flex: 1, background: 'none', border: 'none', color: C.accentText, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
-                  <i className="fa-solid fa-pen" /> Editar
-                </button>
-                {show.valor > 0 && (
-                  <button onClick={() => setPaymentShow(show)}
-                    style={{ flex: 1, background: 'none', border: 'none', color: C.success, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
-                    <i className="fa-brands fa-pix" /> Pagar
+            <div key={show.id} style={{ position: 'relative', overflow: 'hidden', borderBottom: `1px solid ${C.border}` }}>
+              {/* ── painel de ações (revelado ao deslizar) ── */}
+              <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, display: 'flex' }}>
+                {actions.map(a => (
+                  <button key={a.key} onClick={() => { a.onClick(); setSwipeOpen(null) }}
+                    style={{ width: `${ACTION_W}px`, background: C.surface, border: 'none', borderLeft: `1px solid ${C.border}`, color: a.color, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 700 }}>
+                    <i className={a.icon} style={{ fontSize: '15px' }} />
+                    {a.label}
                   </button>
-                )}
-                <button onClick={() => handleCancel(show)}
-                  style={{ flex: 1, background: 'none', border: 'none', color: show.cancelado ? C.success : C.muted, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer', borderRight: `1px solid ${C.border}` }}>
-                  <i className={show.cancelado ? 'fa-solid fa-rotate-left' : 'fa-solid fa-ban'} /> {show.cancelado ? 'Reativar' : 'Cancelar'}
-                </button>
-                <button onClick={() => handleDelete(show.id)}
-                  style={{ flex: 1, background: 'none', border: 'none', color: C.danger, padding: '0.65rem 0.5rem', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
-                  <i className="fa-solid fa-trash" /> Deletar
-                </button>
+                ))}
+              </div>
+
+              {/* ── conteúdo do card (deslizável) ── */}
+              <div onClick={() => setSwipeOpen(isOpen ? null : show.id)}
+                style={{
+                  position: 'relative', background: C.card,
+                  borderLeft: isNext && !show.cancelado ? `3px solid ${C.accent}` : show.cancelado ? `3px solid ${C.dangerBorder}` : '3px solid transparent',
+                  cursor: 'pointer',
+                  transform: isOpen ? `translateX(-${panelWidth}px)` : 'translateX(0)',
+                  transition: 'transform 0.28s cubic-bezier(0.32,0.72,0,1)',
+                }}>
+
+                {/* cabeçalho: status + data */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.55rem 0.9rem 0.4rem', gap: '0.5rem' }}>
+                  {show.cancelado
+                    ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.danger, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <i className="fa-solid fa-ban" /> Cancelado
+                      </span>
+                    : isNext
+                      ? <span style={{ fontSize: '11px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <i className="fa-solid fa-star" /> Próximo show
+                        </span>
+                      : <span style={{ fontSize: '12px', fontWeight: 700, color: rel.color }}>{rel.label}</span>
+                  }
+                  <span style={{ fontSize: '12px', color: C.muted, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fa-regular fa-calendar" style={{ marginRight: '2px' }} />
+                    {day} · {time}
+                    <i className="fa-solid fa-chevron-left" style={{ fontSize: '9px', color: C.muted, opacity: 0.6 }} />
+                  </span>
+                </div>
+
+                {/* corpo: imagem + info */}
+                <div style={{ display: 'flex', gap: '0.75rem', padding: '0.4rem 0.9rem 0.75rem' }}>
+                  {show.image ? (
+                    <div style={{ width: '52px', height: '52px', borderRadius: '9px', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={imgSrc(show.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: (past || show.cancelado) ? 'grayscale(0.5) brightness(0.7)' : 'none' }} />
+                    </div>
+                  ) : (
+                    <div style={{ background: (past || show.cancelado) ? C.surface : C.accentDim, borderRadius: '9px', width: '52px', height: '52px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ color: (past || show.cancelado) ? C.muted : C.accentText, fontSize: '9px', fontWeight: 700, textTransform: 'uppercase' }}>
+                        {d.toLocaleDateString('pt-BR', { month: 'short' })}
+                      </div>
+                      <div style={{ color: (past || show.cancelado) ? C.soft : C.accent, fontSize: '18px', fontWeight: 900, lineHeight: 1.1 }}>
+                        {String(d.getDate()).padStart(2, '0')}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px', justifyContent: 'center' }}>
+                    <div style={{ fontWeight: 800, color: show.cancelado ? C.muted : past ? C.soft : C.text, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: show.cancelado ? 'line-through' : 'none' }}>
+                      {show.venue}
+                    </div>
+                    <div style={{ color: C.muted, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <i className="fa-solid fa-location-dot" style={{ marginRight: '4px', fontSize: '10px' }} />
+                      {show.city}
+                    </div>
+
+                    {(show.tipo || show.valor > 0 || show.particular) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '2px', flexWrap: 'wrap' }}>
+                        {show.particular && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: '5px', padding: '1px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <i className="fa-solid fa-lock" style={{ fontSize: '9px' }} />Particular
+                          </span>
+                        )}
+                        {show.tipo && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: C.accentText, background: C.accentDim, border: `1px solid rgba(184,150,7,0.25)`, borderRadius: '5px', padding: '1px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <i className={show.tipo === 'eletrico' ? 'fa-solid fa-bolt' : 'fa-solid fa-music'} style={{ fontSize: '9px' }} />
+                            {show.tipo === 'eletrico' ? 'Elétrico' : 'Acústico'}
+                          </span>
+                        )}
+                        {show.valor > 0 && (
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: C.success }}>
+                            {show.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )
